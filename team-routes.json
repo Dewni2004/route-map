@@ -1,0 +1,264 @@
+{
+ "routes": {
+  "sample-west-south": {
+   "name": "Sample – West & South coast (from your map)",
+   "company": "viajes",
+   "stops": [
+    {
+     "to": "negombo",
+     "mode": "road"
+    },
+    {
+     "to": "katunayake",
+     "mode": "road"
+    },
+    {
+     "to": "colombo",
+     "mode": "road"
+    },
+    {
+     "to": "galkissa",
+     "mode": "road"
+    },
+    {
+     "to": "galle",
+     "mode": "road"
+    },
+    {
+     "to": "unawatuna",
+     "mode": "road"
+    }
+   ],
+   "updatedAt": "2026-11-11T11:02:00Z"
+  },
+  "sample-classic-11": {
+   "name": "Sample – Classic Sri Lanka, 11 days",
+   "company": "viajes",
+   "stops": [
+    {
+     "to": "katunayake",
+     "mode": "road"
+    },
+    {
+     "to": "negombo",
+     "mode": "road"
+    },
+    {
+     "to": "kurunegala",
+     "mode": "road"
+    },
+    {
+     "to": "anuradhapura",
+     "mode": "road"
+    },
+    {
+     "to": "sigiriya",
+     "mode": "road"
+    },
+    {
+     "to": "polonnaruwa",
+     "mode": "road"
+    },
+    {
+     "to": "dambulla",
+     "mode": "road"
+    },
+    {
+     "to": "matale",
+     "mode": "road"
+    },
+    {
+     "to": "kandy",
+     "mode": "road"
+    },
+    {
+     "to": "nuwaraeliya",
+     "mode": "road"
+    },
+    {
+     "to": "nanuoya",
+     "mode": "road"
+    },
+    {
+     "to": "ella",
+     "mode": "train"
+    },
+    {
+     "to": "buduruwagala",
+     "mode": "road"
+    },
+    {
+     "to": "tissa",
+     "mode": "road"
+    },
+    {
+     "to": "yala",
+     "mode": "safari"
+    },
+    {
+     "to": "mirissa",
+     "mode": "road"
+    },
+    {
+     "to": "unawatuna",
+     "mode": "road"
+    },
+    {
+     "to": "galle",
+     "mode": "road"
+    },
+    {
+     "to": "colombo",
+     "mode": "road"
+    }
+   ],
+   "updatedAt": "2026-11-11T11:02:00Z"
+  },
+  "sample-cultural-6": {
+   "name": "Sample – Cultural Triangle, 6 days",
+   "company": "viajes",
+   "stops": [
+    {
+     "to": "katunayake",
+     "mode": "road"
+    },
+    {
+     "to": "anuradhapura",
+     "mode": "road"
+    },
+    {
+     "to": "mihintale",
+     "mode": "road"
+    },
+    {
+     "to": "sigiriya",
+     "mode": "road"
+    },
+    {
+     "to": "polonnaruwa",
+     "mode": "road"
+    },
+    {
+     "to": "dambulla",
+     "mode": "road"
+    },
+    {
+     "to": "kandy",
+     "mode": "road"
+    },
+    {
+     "to": "colombo",
+     "mode": "road"
+    }
+   ],
+   "updatedAt": "2026-11-11T11:02:00Z"
+  },
+  "sample-hills-beaches-8": {
+   "name": "Sample – Hills & Beaches, 8 days",
+   "company": "viajes",
+   "stops": [
+    {
+     "to": "katunayake",
+     "mode": "road"
+    },
+    {
+     "to": "pinnawala",
+     "mode": "road"
+    },
+    {
+     "to": "kandy",
+     "mode": "road"
+    },
+    {
+     "to": "nanuoya",
+     "mode": "road"
+    },
+    {
+     "to": "ella",
+     "mode": "train"
+    },
+    {
+     "to": "udawalawe",
+     "mode": "road"
+    },
+    {
+     "to": "tissa",
+     "mode": "road"
+    },
+    {
+     "to": "yala",
+     "mode": "safari"
+    },
+    {
+     "to": "mirissa",
+     "mode": "road"
+    },
+    {
+     "to": "galle",
+     "mode": "road"
+    },
+    {
+     "to": "bentota",
+     "mode": "road"
+    },
+    {
+     "to": "colombo",
+     "mode": "road"
+    }
+   ],
+   "updatedAt": "2026-11-11T11:02:00Z"
+  },
+  "sample-east-9": {
+   "name": "Sample – East Coast, 9 days",
+   "company": "viajes",
+   "stops": [
+    {
+     "to": "katunayake",
+     "mode": "road"
+    },
+    {
+     "to": "dambulla",
+     "mode": "road"
+    },
+    {
+     "to": "sigiriya",
+     "mode": "road"
+    },
+    {
+     "to": "trincomalee",
+     "mode": "road"
+    },
+    {
+     "to": "nilaveli",
+     "mode": "road"
+    },
+    {
+     "to": "pasikudah",
+     "mode": "road"
+    },
+    {
+     "to": "batticaloa",
+     "mode": "road"
+    },
+    {
+     "to": "arugambay",
+     "mode": "road"
+    },
+    {
+     "to": "ella",
+     "mode": "road"
+    },
+    {
+     "to": "kandy",
+     "mode": "road"
+    },
+    {
+     "to": "colombo",
+     "mode": "road"
+    }
+   ],
+   "updatedAt": "2026-11-11T11:02:00Z"
+  }
+ },
+ "places": {}
+}

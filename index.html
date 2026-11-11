@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sri Lanka Viajes Edén – Route Map Generator</title>
+<style>
+  :root {
+    --bg:#f5f3ee; --card:#fff; --ink:#1b1f3b; --muted:#6b6f80; --line:#e3dfd6;
+    --navy:#1a1b44; --accent:#ef5a2a; --accent-soft:#fdebe4; --ok:#1f8a3b; --danger:#b42318;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); font-size:15px; }
+  button, input, select { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+
+  /* top bar */
+  .top { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--navy); color:#fff; position:sticky; top:0; z-index:20; }
+  .top h1 { font-size:17px; margin:0; font-weight:650; letter-spacing:.2px; flex:1; }
+  .top .tabs { display:flex; background:rgba(255,255,255,.1); border-radius:10px; padding:3px; }
+  .top .tabs button { background:none; border:0; color:#fff; padding:7px 14px; border-radius:8px; font-size:14px; opacity:.8; }
+  .top .tabs button.on { background:#fff; color:var(--navy); opacity:1; font-weight:600; }
+
+  .wrap { display:grid; grid-template-columns:minmax(330px, 450px) 1fr; gap:20px; padding:18px 20px 40px; align-items:start; max-width:1300px; margin:0 auto; }
+  @media (max-width: 900px) { .wrap { grid-template-columns:1fr; } .mapcol { position:static !important; } }
+
+  .card { background:var(--card); border-radius:14px; padding:16px 16px 18px; box-shadow:0 1px 2px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.03); margin-bottom:14px; }
+  .step { display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:15px; font-weight:650; }
+  .step .n { width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center; font-size:13px; flex:none; }
+  .help { font-size:13px; color:var(--muted); line-height:1.5; margin:6px 0 0; }
+
+  /* companies */
+  .companies { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .co { background:var(--navy); border:3px solid transparent; border-radius:10px; padding:6px; height:78px; display:flex; align-items:center; justify-content:center; position:relative; }
+  .co img { max-width:100%; max-height:100%; display:block; }
+  .co.none { color:#cfd2e6; font-size:13px; }
+  .co.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  .co.on::after { content:"✓"; position:absolute; top:-9px; right:-9px; width:22px; height:22px; border-radius:50%; background:var(--accent); color:#fff; font-size:13px; display:grid; place-items:center; font-weight:700; }
+  .coname { font-size:13px; color:var(--muted); margin-top:8px; }
+  .coname b { color:var(--ink); }
+
+  input[type=text], input[type=search] { width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; background:#fff; outline:none; }
+  input[type=text]:focus, input[type=search]:focus { border-color:var(--accent); }
+
+  /* search */
+  .search { position:relative; }
+  .results { position:absolute; left:0; right:0; top:calc(100% + 4px); background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); z-index:10; overflow:hidden; display:none; }
+  .results.open { display:block; }
+  .results button { display:flex; width:100%; text-align:left; background:none; border:0; padding:10px 12px; gap:8px; align-items:center; }
+  .results button:hover, .results button.hi { background:var(--accent-soft); }
+  .results .in { margin-left:auto; font-size:12px; color:var(--muted); }
+  .results .empty { padding:10px 12px; color:var(--muted); font-size:14px; }
+
+  /* stops */
+  .stops { list-style:none; margin:14px 0 0; padding:0; }
+  .stopempty { border:2px dashed var(--line); border-radius:12px; padding:18px; text-align:center; color:var(--muted); font-size:14px; line-height:1.5; margin-top:14px; }
+  .stop { display:flex; align-items:center; gap:8px; background:#faf9f6; border:1px solid var(--line); border-radius:10px; padding:8px 8px 8px 6px; }
+  .stop.dragging { opacity:.4; }
+  .stop.over { outline:2px solid var(--accent); }
+  .grip { cursor:grab; color:#a9a59b; padding:0 2px; font-size:16px; user-select:none; }
+  .num { width:24px; height:24px; border-radius:50%; background:var(--navy); color:#fff; font-size:12px; display:grid; place-items:center; flex:none; font-weight:600; }
+  .pname { flex:1; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lab { border:1px solid var(--line); border-radius:7px; padding:3px 4px; font-size:12px; background:#fff; color:var(--muted); max-width:112px; }
+  .ib { border:0; background:none; width:28px; height:28px; border-radius:7px; color:#7b7768; font-size:15px; display:grid; place-items:center; flex:none; }
+  .ib:hover { background:#ece8de; color:var(--ink); }
+  .ib.del:hover { background:#fde8e6; color:var(--danger); }
+  .ib:disabled { opacity:.25; cursor:default; background:none; }
+
+  .leg { display:flex; align-items:center; gap:8px; padding:5px 0 5px 34px; font-size:12.5px; color:var(--muted); }
+  .leg::before { content:""; width:2px; height:22px; background:#d9d4c8; margin-left:-22px; margin-right:12px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; }
+  .seg button { border:0; background:none; padding:4px 9px; font-size:12.5px; color:var(--muted); }
+  .seg button + button { border-left:1px solid var(--line); }
+  .seg button.on { background:var(--ink); color:#fff; }
+  .seg button.on.train { background:#111; }
+  .seg button.on.safari { background:var(--ok); }
+
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  .btn { border:0; border-radius:10px; padding:11px 16px; font-size:14.5px; font-weight:600; background:var(--ink); color:#fff; display:inline-flex; align-items:center; gap:8px; }
+  .btn.big { width:100%; justify-content:center; padding:14px 16px; font-size:16px; background:var(--accent); }
+  .btn.big:hover { filter:brightness(1.05); }
+  .btn.light { background:#ece8de; color:var(--ink); }
+  .btn.light:hover { background:#e2ddd0; }
+  .btn.link { background:none; color:var(--accent); padding:6px 2px; font-weight:600; }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .check { display:flex; gap:8px; align-items:center; font-size:13.5px; color:var(--muted); }
+
+  /* new place form */
+  .newplace { margin-top:12px; background:var(--accent-soft); border-radius:12px; padding:12px; display:none; }
+  .newplace.open { display:block; }
+  .newplace p { margin:0 0 8px; font-size:13.5px; line-height:1.45; }
+
+  /* map */
+  .mapcol { position:sticky; top:72px; }
+  .mapbox { position:relative; background:var(--navy); border-radius:14px; overflow:hidden; width:min(100%, 640px, calc((100vh - 120px) * 0.6667)); margin:0 auto; }
+  @media (max-width: 900px) { .mapbox { width:100%; } }
+  .mapbox.picking { cursor:crosshair; outline:3px solid var(--accent); }
+  #map { width:100%; height:auto; display:block; }
+  .pick { cursor:pointer; }
+  .pick circle { fill:#fff; fill-opacity:.85; stroke:#1a1b44; stroke-width:2; transition:r .1s; }
+  .pick circle.hit { fill:transparent; stroke:none; }
+  .pick:hover circle:not(.hit) { fill:var(--accent); fill-opacity:1; stroke:#fff; }
+  .tip { position:absolute; pointer-events:none; background:var(--ink); color:#fff; font-size:12.5px; padding:5px 8px; border-radius:6px; white-space:nowrap; transform:translate(-50%, -140%); display:none; z-index:5; }
+  .banner { position:absolute; left:12px; right:12px; top:12px; background:var(--accent); color:#fff; padding:10px 12px; border-radius:10px; font-size:14px; display:none; z-index:6; }
+  .banner.open { display:flex; gap:8px; align-items:center; }
+  .banner button { margin-left:auto; background:rgba(255,255,255,.2); border:0; color:#fff; border-radius:7px; padding:5px 10px; }
+  .maphint { text-align:center; font-size:13px; color:var(--muted); margin-top:10px; }
+
+  /* saved */
+  .saved { list-style:none; padding:0; margin:12px 0 0; }
+  .saved li { display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid var(--line); }
+  .saved li:last-child { border-bottom:0; }
+  .saved .meta { flex:1; min-width:0; }
+  .saved .t { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved .s { font-size:12.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved .acts { display:flex; gap:4px; }
+  .mini { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; font-size:13px; }
+  .mini:hover { background:#f3f0e9; }
+  .mini.danger { color:var(--danger); }
+  .mini.confirm { background:var(--danger); color:#fff; border-color:var(--danger); }
+  .status { font-size:13px; color:var(--muted); margin-top:10px; }
+
+  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); background:var(--ink); color:#fff; padding:11px 16px; border-radius:10px; font-size:14px; opacity:0; transition:.2s; z-index:50; pointer-events:none; max-width:90vw; }
+  .toast.show { opacity:1; transform:translateX(-50%); }
+
+  .exportbox { display:none; margin-top:12px; }
+  .exportbox img { width:100%; border-radius:10px; display:block; }
+  .exportbox p { font-size:13px; color:var(--muted); margin:6px 0 0; }
+  .hidden { display:none !important; }
+  .unsaved { font-size:12px; color:var(--accent); font-weight:600; margin-left:6px; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Route Map Maker</h1>
+  <div class="tabs" role="tablist">
+    <button class="on" id="tabMake" role="tab">Make a map</button>
+    <button id="tabSaved" role="tab">Saved routes <span id="savedCount"></span></button>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- LEFT: steps -->
+  <div>
+    <section id="viewMake">
+      <div class="card">
+        <div class="step"><span class="n">1</span>Choose the company</div>
+        <div class="companies" id="companies"></div>
+        <div class="coname" id="coname"></div>
+      </div>
+
+      <div class="card">
+        <div class="step"><span class="n">2</span>Name the route <span class="unsaved hidden" id="unsaved">• not saved</span></div>
+        <input type="text" id="routeName" placeholder="e.g. Classic Sri Lanka – 11 days" maxlength="80">
+      </div>
+
+      <div class="card">
+        <div class="step"><span class="n">3</span>Add the stops, in order</div>
+        <div class="search">
+          <input type="search" id="q" placeholder="Type a place, e.g. Kandy" autocomplete="off">
+          <div class="results" id="results"></div>
+        </div>
+        <p class="help">Or click any white dot on the map. Drag the stops (or use the arrows) to change the order.</p>
+        <div id="stopsBox"></div>
+        <div class="row">
+          <button class="btn light" id="undo" disabled>↶ Undo</button>
+          <button class="btn light" id="clear">Start over</button>
+          <button class="btn link" id="addPlaceBtn">+ Place not in the list?</button>
+        </div>
+        <div class="newplace" id="newPlace">
+          <p id="npText"><b>Add a new place.</b> Click on the map where the place is.</p>
+          <div id="npForm" class="hidden">
+            <input type="text" id="npName" placeholder="Place name, e.g. Kalkudah" maxlength="40">
+            <div class="row" style="margin-top:8px">
+              <span class="check">Name on the:</span>
+              <select class="lab" id="npLabel" style="max-width:none;font-size:13px;padding:6px">
+                <option value="r">right</option><option value="l">left</option><option value="t">top</option><option value="b">bottom</option>
+              </select>
+            </div>
+            <div class="row">
+              <button class="btn" id="npSave">Save place and add it</button>
+              <button class="btn light" id="npCancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="step"><span class="n">4</span>Download or save</div>
+        <button class="btn big" id="download">⬇ Download map (PNG)</button>
+        <div class="row">
+          <button class="btn" id="save">💾 Save route</button>
+          <button class="btn light" id="saveCopy">Save as a copy</button>
+          <label class="check" style="margin-left:auto"><input type="checkbox" id="showAll" checked> Show all places</label>
+        </div>
+        <p class="help" id="saveHelp">Routes are saved in this browser.</p>
+        <div class="exportbox" id="exportBox">
+          <img id="out" alt="Your route map">
+          <p>Right-click the image and choose <b>Save image as…</b> (on a phone, press and hold).</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewSaved" class="hidden">
+      <div class="card">
+        <div class="step">Saved routes</div>
+        <input type="search" id="savedQ" placeholder="Search saved routes…">
+        <ul class="saved" id="savedList"></ul>
+        <div class="status" id="savedStatus">Loading saved routes…</div>
+        <div class="row"><button class="btn" id="newFromSaved">+ Make a new map</button></div>
+      </div>
+      <div class="card">
+        <div class="step">Share routes with colleagues</div>
+        <p class="help" style="margin-top:0">Export saves all your routes and added places into one file. A colleague can load that file with Import. To give the routes to everyone at once, upload the file to the website as <b>team-routes.json</b>.</p>
+        <div class="row">
+          <button class="btn" id="exportRoutes">⬇ Export routes</button>
+          <label class="btn light" for="importFile" style="cursor:pointer">⬆ Import routes file</label>
+          <input type="file" id="importFile" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <div class="card" id="customCard">
+        <div class="step">Places your team added</div>
+        <ul class="saved" id="customList"></ul>
+        <div class="status" id="customStatus"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- RIGHT: map -->
+  <div class="mapcol">
+    <div class="mapbox" id="mapbox">
+      <svg id="map" viewBox="0 0 1050 1575" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="tip" id="tip"></div>
+      <div class="banner" id="banner"><span>Click on the map where the new place is.</span><button id="bannerCancel">Cancel</button></div>
+    </div>
+    <div class="maphint" id="maphint">Click a white dot to add that place to the route.</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   PLACES — positions are pixels on base.png (1050 × 1575).
+   label: name position (l, r, t, b, tl, tr, bl, br) · photo: round photo pin
+   badge:"plane" draws the airport sign. Team-added places come from the database.
+   ================================================================ */
+const PLACES = {
+  jaffna:       { name:"Jaffna",        x:244, y:104,  label:"r" },
+  mannar:       { name:"Mannar",        x:201, y:368,  label:"r" },
+  wilpattu:     { name:"Wilpattu",      x:249, y:566,  label:"r" },
+  kalpitiya:    { name:"Kalpitiya",     x:155, y:653,  label:"r" },
+  anuradhapura: { name:"Anuradhapura",  x:392, y:607,  label:"bl" },
+  mihintale:    { name:"Mihintale",     x:431, y:589,  label:"tr" },
+  trincomalee:  { name:"Trincomalee",   x:696, y:488,  label:"l" },
+  nilaveli:     { name:"Nilaveli",      x:662, y:441,  label:"l" },
+  habarana:     { name:"Habarana",      x:521, y:701,  label:"tl" },
+  minneriya:    { name:"Minneriya",     x:559, y:700,  label:"tr" },
+  sigiriya:     { name:"Sigiriya",      x:526, y:730,  label:"tl" },
+  dambulla:     { name:"Dambulla",      x:486, y:770,  label:"l" },
+  polonnaruwa:  { name:"Polonnaruwa",   x:615, y:729,  label:"b" },
+  pasikudah:    { name:"Pasikudah",     x:797, y:718,  label:"l" },
+  batticaloa:   { name:"Batticaloa",    x:851, y:817,  label:"l" },
+  matale:       { name:"Matale",        x:477, y:919,  label:"r" },
+  kurunegala:   { name:"Kurunegala",    x:362, y:933,  label:"tl" },
+  pinnawala:    { name:"Pinnawala",     x:391, y:989,  label:"b" },
+  kandy:        { name:"Kandy",         x:488, y:995,  label:"r" },
+  negombo:      { name:"Negombo",       x:206, y:959,  label:"l", labelAt:[-26,18,"end"], photo:"pins/negombo.png",   photoAt:[-94,-58] },
+  katunayake:   { name:"Katunayake",    x:222, y:1048, label:"l", labelAt:[-30,8,"end"], badge:"plane", badgeAt:[41,-21] },
+  colombo:      { name:"Colombo",       x:207, y:1155, label:"bl", photo:"pins/colombo.png",   photoAt:[-65,-41] },
+  galkissa:     { name:"Galkissa Beach",x:244, y:1271, label:"l" },
+  kalutara:     { name:"Kalutara",      x:252, y:1298, label:"r" },
+  bentota:      { name:"Bentota",       x:247, y:1331, label:"r" },
+  hikkaduwa:    { name:"Hikkaduwa",     x:284, y:1434, label:"r" },
+  galle:        { name:"Galle",         x:319, y:1471, label:"bl", photo:"pins/galle.png",     photoAt:[-123,-63] },
+  unawatuna:    { name:"Unawatuna",     x:347, y:1491, label:"bl", photo:"pins/unawatuna.png", photoAt:[-204,22] },
+  weligama:     { name:"Weligama",      x:395, y:1510, label:"t" },
+  mirissa:      { name:"Mirissa",       x:428, y:1518, label:"tr" },
+  tangalle:     { name:"Tangalle",      x:559, y:1491, label:"t" },
+  hambantota:   { name:"Hambantota",    x:691, y:1440, label:"t" },
+  kitulgala:    { name:"Kitulgala",     x:405, y:1105, label:"l" },
+  adamspeak:    { name:"Adam's Peak",   x:435, y:1170, label:"b" },
+  sinharaja:    { name:"Sinharaja",     x:419, y:1326, label:"r" },
+  nuwaraeliya:  { name:"Nuwara Eliya",  x:538, y:1101, label:"t" },
+  nanuoya:      { name:"Nanu Oya",      x:516, y:1115, label:"l" },
+  hortonplains: { name:"Horton Plains", x:546, y:1165, label:"bl" },
+  haputale:     { name:"Haputale",      x:606, y:1171, label:"b" },
+  ella:         { name:"Ella",          x:637, y:1131, label:"tr" },
+  buduruwagala: { name:"Buduruwagala",  x:658, y:1156, label:"r" },
+  udawalawe:    { name:"Udawalawe",     x:581, y:1287, label:"r" },
+  tissa:        { name:"Thissamaharama",x:731, y:1346, label:"bl" },
+  yala:         { name:"Yala",          x:815, y:1306, label:"tr" },
+  arugambay:    { name:"Arugam Bay",    x:935, y:1114, label:"l" }
+};
+
+/* ================================================================
+   COMPANIES — one map, any logo
+   ================================================================ */
+const COMPANIES = [
+  { id:"viajes",  name:"Sri Lanka Viajes Edén",  lang:"Spanish", logo:"logos/viajes.png" },
+  { id:"travels", name:"Sri Lanka Eden Travels", lang:"English", logo:"logos/travels.png" },
+  { id:"reisen",  name:"Sri Lanka Eden Reisen",  lang:"German",  logo:"logos/reisen.png" },
+  { id:"viaggi",  name:"Sri Lanka Viaggi Eden",  lang:"Italian", logo:"logos/viaggi.png" },
+  { id:"voyage",  name:"Sri Lanka Voyage Eden",  lang:"French",  logo:"logos/voyage.png" },
+  { id:"none",    name:"No logo",                lang:"",        logo:null }
+];
+
+/* ================================================================
+   STYLE — matches the original map
+   ================================================================ */
+const STYLE = {
+  route:"#e3262b", routeWidth:3.5, train:"#111111", safari:"#1f8a3b",
+  dotFill:"#16215e", dotRing:"#2f8cf0", dotR:9,
+  textLand:"#1b1f3b", textSea:"#ffffff", font:"Arial, Helvetica, sans-serif", fontSize:28,
+  badgeBg:"#1c1c1c", badgeIcon:"#f6c21a", photoR:52,
+  logoBox:{ x:635, y:45, w:395, h:247 }
+};
+const ICONS = {
+  plane:"M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z",
+  train:"M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+  safari:"M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"
+};
+
+const W = 1050, H = 1575;
+const LABEL = { l:[-16,10,"end"], r:[16,10,"start"], t:[0,-18,"middle"], b:[0,40,"middle"],
+                tl:[6,-16,"end"], tr:[-6,-16,"start"], bl:[-8,38,"end"], br:[8,38,"start"] };
+const MODES = [["road","🚗 Road"],["train","🚆 Train"],["safari","🚙 Safari"]];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const f1 = n => (+n).toFixed(1);
+const $ = id => document.getElementById(id);
+
+/* ---------------- state ---------------- */
+let custom = {};                    // team-added places from the database
+const allPlaces = () => Object.assign({}, PLACES, custom);
+const state = { company:"viajes", name:"", stops:[], routeId:null };
+let savedRoutes = [], lastSavedJSON = null, history = [], landData = null;
+let db = null, downloads = null;
+
+function snapshot() { return JSON.stringify({ company:state.company, name:state.name, stops:state.stops }); }
+function change(fn) {               // every edit goes through here so Undo works
+  history.push(snapshot()); if (history.length > 60) history.shift();
+  fn(); renderAll();
+}
+function isDirty() { return state.stops.length > 0 && snapshot() !== lastSavedJSON; }
+
+/* ---------------- land / sea lookup for label colours ---------------- */
+function isLand(x, y) {
+  if (!landData) return true;
+  x = Math.max(0, Math.min(W-1, Math.round(x))); y = Math.max(0, Math.min(H-1, Math.round(y)));
+  const i = (y*W + x) * 4; return landData[i] - landData[i+2] > 60;
+}
+
+/* ================================================================
+   DRAWING
+   ================================================================ */
+function buildSVG(stops, opts, hrefs) {
+  const P = allPlaces();
+  const legs = stops.filter(s => P[s.to]);
+  const pts = legs.map(l => P[l.to]);
+  const H_ = k => (hrefs && hrefs[k]) || k;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  s += `<defs>${Object.keys(P).filter(k => P[k].photo).map(k => `<clipPath id="c-${esc(k)}"><circle r="${STYLE.photoR}"/></clipPath>`).join("")}</defs>`;
+  s += `<image href="${H_("base.png")}" xlink:href="${H_("base.png")}" x="0" y="0" width="${W}" height="${H}"/>`;
+  if (opts.logo) { const B = STYLE.logoBox; s += `<image href="${H_(opts.logo)}" xlink:href="${H_(opts.logo)}" x="${B.x}" y="${B.y}" width="${B.w}" height="${B.h}" preserveAspectRatio="xMidYMid meet"/>`; }
+
+  // route
+  const T = 0.14;
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[Math.max(0,i-2)], p1 = pts[i-1], p2 = pts[i], p3 = pts[Math.min(pts.length-1,i+1)];
+    const c1 = [p1.x + (p2.x-p0.x)*T, p1.y + (p2.y-p0.y)*T], c2 = [p2.x - (p3.x-p1.x)*T, p2.y - (p3.y-p1.y)*T];
+    const mode = legs[i].mode || "road";
+    const st = mode === "train" ? `stroke="${STYLE.train}" stroke-dasharray="10 7"`
+             : mode === "safari" ? `stroke="${STYLE.safari}" stroke-dasharray="2 9" stroke-linecap="round"` : `stroke="${STYLE.route}"`;
+    const sw = mode === "safari" ? 6 : STYLE.routeWidth;
+    s += `<path d="M${f1(p1.x)},${f1(p1.y)} C${f1(c1[0])},${f1(c1[1])} ${f1(c2[0])},${f1(c2[1])} ${f1(p2.x)},${f1(p2.y)}" fill="none" stroke-width="${sw}" ${st}/>`;
+    if (mode !== "road") {
+      const mx = .125*p1.x + .375*c1[0] + .375*c2[0] + .125*p2.x, my = .125*p1.y + .375*c1[1] + .375*c2[1] + .125*p2.y;
+      const dx = p2.x-p1.x, dy = p2.y-p1.y, len = Math.hypot(dx,dy) || 1;
+      s += badge(mx - (dy/len)*34, my + (dx/len)*34, mode);
+    }
+  }
+  // photos + airport
+  const seen = []; legs.forEach(l => { if (!seen.includes(l.to)) seen.push(l.to); });
+  for (const k of seen) {
+    const p = P[k];
+    if (p.photo) {
+      const [ox, oy] = p.photoAt || [-90,-60];
+      s += `<g transform="translate(${p.x+ox},${p.y+oy})"><circle r="${STYLE.photoR+3}" fill="#fff"/><image href="${H_(p.photo)}" xlink:href="${H_(p.photo)}" x="${-STYLE.photoR}" y="${-STYLE.photoR}" width="${STYLE.photoR*2}" height="${STYLE.photoR*2}" clip-path="url(#c-${esc(k)})"/></g>`;
+    }
+    if (p.badge === "plane") { const [bx, by] = p.badgeAt || [40,-20]; s += badge(p.x+bx, p.y+by, "plane", true); }
+  }
+  // dots + names (a stop may override the name position)
+  for (const k of seen) {
+    const p = P[k], over = (legs.find(l => l.to === k) || {}).label;
+    s += `<circle cx="${p.x}" cy="${p.y}" r="${STYLE.dotR}" fill="${STYLE.dotFill}" stroke="${STYLE.dotRing}" stroke-width="3"/>`;
+    const [dx, dy, anchor] = (over && LABEL[over]) || p.labelAt || LABEL[p.label] || LABEL.r;
+    const tx = p.x+dx, ty = p.y+dy, w = String(p.name).length * STYLE.fontSize * .52;
+    const cx = anchor === "end" ? tx - w/2 : anchor === "start" ? tx + w/2 : tx;
+    const land = isLand(cx, ty - STYLE.fontSize*.35);
+    s += `<text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" font-family="${STYLE.font}" font-size="${STYLE.fontSize}" fill="${land ? STYLE.textLand : STYLE.textSea}" stroke="${land ? "#fff38a" : "#1a1b44"}" stroke-width="5" stroke-linejoin="round" paint-order="stroke">${esc(p.name)}</text>`;
+  }
+  // clickable layer (screen only, never in the download)
+  if (opts.pickLayer) {
+    s += `<g id="pickLayer">`;
+    for (const [k, p] of Object.entries(P)) {
+      if (seen.includes(k)) continue;
+      s += `<g class="pick" data-id="${esc(k)}"><circle cx="${p.x}" cy="${p.y}" r="8"/><circle class="hit" cx="${p.x}" cy="${p.y}" r="18"/></g>`;
+    }
+    s += `</g>`;
+  }
+  return s + `</svg>`;
+}
+function badge(x, y, kind, diamond) {
+  const size = 46;
+  const shape = diamond ? `<rect x="${-size/2}" y="${-size/2}" width="${size}" height="${size}" rx="6" transform="rotate(45)" fill="${STYLE.badgeBg}"/>`
+                        : `<rect x="${-size/2}" y="${-size/2}" width="${size}" height="${size}" rx="8" fill="${STYLE.badgeBg}"/>`;
+  return `<g transform="translate(${f1(x)},${f1(y)})">${shape}<path d="${ICONS[kind]}" fill="${STYLE.badgeIcon}" transform="scale(1.35) translate(-12,-12)"/></g>`;
+}
+const companyLogo = () => (COMPANIES.find(c => c.id === state.company) || {}).logo || null;
+
+/* ================================================================
+   RENDERING THE PAGE
+   ================================================================ */
+function renderCompanies() {
+  $("companies").innerHTML = COMPANIES.map(c => `<button class="co ${c.logo ? "" : "none"} ${c.id === state.company ? "on" : ""}" data-co="${c.id}" title="${esc(c.name)}" aria-pressed="${c.id === state.company}">${c.logo ? `<img src="${c.logo}" alt="${esc(c.name)}">` : "No logo"}</button>`).join("");
+  const c = COMPANIES.find(c => c.id === state.company);
+  $("coname").innerHTML = c.logo ? `Selected: <b>${esc(c.name)}</b> · ${esc(c.lang)}` : "The map will have no logo.";
+}
+
+function renderStops() {
+  const P = allPlaces(), box = $("stopsBox");
+  if (!state.stops.length) { box.innerHTML = `<div class="stopempty">No stops yet.<br>Start with the arrival point, for example <b>Katunayake</b> (airport).</div>`; return; }
+  let h = `<ul class="stops" id="stops">`;
+  state.stops.forEach((s, i) => {
+    const p = P[s.to]; const name = p ? p.name : `${s.to} (missing place)`;
+    if (i > 0) {
+      h += `<li class="leg">to ${esc(name)} by <span class="seg">${MODES.map(([m, t]) => `<button class="${m} ${ (s.mode||"road") === m ? "on" : ""}" data-mode="${m}" data-i="${i}">${t}</button>`).join("")}</span></li>`;
+    }
+    h += `<li class="stop" draggable="true" data-i="${i}">
+      <span class="grip" title="Drag to move">⋮⋮</span><span class="num">${i+1}</span>
+      <span class="pname" title="${esc(name)}">${esc(name)}</span>
+      <select class="lab" data-i="${i}" title="Where the name sits on the map">
+        ${[["","Name: auto"],["r","Name: right"],["l","Name: left"],["t","Name: top"],["b","Name: bottom"]].map(([v,t]) => `<option value="${v}" ${ (s.label||"") === v ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+      <button class="ib" data-up="${i}" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
+      <button class="ib" data-down="${i}" title="Move down" ${i === state.stops.length-1 ? "disabled" : ""}>↓</button>
+      <button class="ib del" data-del="${i}" title="Remove">✕</button></li>`;
+  });
+  box.innerHTML = h + `</ul>`;
+}
+
+function renderMap() {
+  const svg = buildSVG(state.stops, { logo:companyLogo(), pickLayer:$("showAll").checked });
+  const doc = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+  doc.id = "map"; $("map").replaceWith(doc);
+  $("maphint").textContent = $("showAll").checked ? "Click a white dot to add that place to the route." : "Tick “Show all places” to pick places on the map.";
+}
+
+function renderAll() {
+  renderCompanies(); renderStops(); renderMap();
+  $("undo").disabled = !history.length;
+  $("routeName").value = state.name;
+  $("unsaved").classList.toggle("hidden", !isDirty());
+  $("save").textContent = state.routeId ? "💾 Save changes" : "💾 Save route";
+  $("saveCopy").classList.toggle("hidden", !state.routeId);
+  $("exportBox").style.display = "none";
+}
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
+
+/* ================================================================
+   STEP 1 · company
+   ================================================================ */
+$("companies").addEventListener("click", e => {
+  const b = e.target.closest("[data-co]"); if (!b || b.dataset.co === state.company) return;
+  change(() => state.company = b.dataset.co);
+});
+
+/* ================================================================
+   STEP 2 · name
+   ================================================================ */
+let nameTimer;
+$("routeName").addEventListener("input", e => {
+  if (!nameTimer) history.push(snapshot());
+  clearTimeout(nameTimer); nameTimer = setTimeout(() => nameTimer = null, 800);
+  state.name = e.target.value; $("undo").disabled = false;
+  $("unsaved").classList.toggle("hidden", !isDirty());
+});
+
+/* ================================================================
+   STEP 3 · stops
+   ================================================================ */
+const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+let hi = 0;
+function searchResults() {
+  const q = norm($("q").value), P = allPlaces();
+  if (!q) return [];
+  const list = Object.entries(P).map(([k, p]) => ({ k, p, n:norm(p.name) }))
+    .filter(o => o.n.includes(q) || norm(o.k).includes(q))
+    .sort((a, b) => (b.n.startsWith(q) - a.n.startsWith(q)) || a.p.name.localeCompare(b.p.name));
+  return list.slice(0, 8);
+}
+function renderResults() {
+  const r = searchResults(), box = $("results");
+  if (!$("q").value.trim()) { box.classList.remove("open"); return; }
+  const inRoute = new Set(state.stops.map(s => s.to));
+  box.innerHTML = r.length ? r.map((o, i) => `<button data-add="${esc(o.k)}" class="${i === hi ? "hi" : ""}">📍 ${esc(o.p.name)}${inRoute.has(o.k) ? `<span class="in">already in route</span>` : ""}</button>`).join("")
+    : `<div class="empty">No place called “${esc($("q").value)}”. Use <b>+ Place not in the list?</b> below to add it.</div>`;
+  box.classList.add("open");
+}
+function addStop(id) {
+  const P = allPlaces(); if (!P[id]) return;
+  change(() => state.stops.push({ to:id, mode:"road" }));
+  $("q").value = ""; $("results").classList.remove("open");
+  toast(`Added ${P[id].name}`);
+}
+$("q").addEventListener("input", () => { hi = 0; renderResults(); });
+$("q").addEventListener("keydown", e => {
+  const r = searchResults();
+  if (e.key === "ArrowDown") { hi = Math.min(hi+1, r.length-1); renderResults(); e.preventDefault(); }
+  else if (e.key === "ArrowUp") { hi = Math.max(hi-1, 0); renderResults(); e.preventDefault(); }
+  else if (e.key === "Enter" && r[hi]) { addStop(r[hi].k); e.preventDefault(); }
+  else if (e.key === "Escape") { $("results").classList.remove("open"); }
+});
+$("results").addEventListener("mousedown", e => { const b = e.target.closest("[data-add]"); if (b) { e.preventDefault(); addStop(b.dataset.add); $("q").focus(); } });
+$("q").addEventListener("blur", () => setTimeout(() => $("results").classList.remove("open"), 150));
+
+$("stopsBox").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.mode) { const i = +t.dataset.i; change(() => state.stops[i].mode = t.dataset.mode); }
+  else if (t.dataset.up) { const i = +t.dataset.up; change(() => state.stops.splice(i-1, 0, state.stops.splice(i, 1)[0])); }
+  else if (t.dataset.down) { const i = +t.dataset.down; change(() => state.stops.splice(i+1, 0, state.stops.splice(i, 1)[0])); }
+  else if (t.dataset.del) { const i = +t.dataset.del; change(() => state.stops.splice(i, 1)); }
+});
+$("stopsBox").addEventListener("change", e => {
+  if (e.target.matches("select.lab")) { const i = +e.target.dataset.i, v = e.target.value; change(() => { if (v) state.stops[i].label = v; else delete state.stops[i].label; }); }
+});
+// drag and drop
+let dragFrom = null;
+$("stopsBox").addEventListener("dragstart", e => { const li = e.target.closest(".stop"); if (!li) return; dragFrom = +li.dataset.i; li.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", "x"); } catch {} });
+$("stopsBox").addEventListener("dragover", e => { const li = e.target.closest(".stop"); if (dragFrom === null || !li) return; e.preventDefault(); document.querySelectorAll(".stop.over").forEach(x => x.classList.remove("over")); li.classList.add("over"); });
+$("stopsBox").addEventListener("drop", e => {
+  const li = e.target.closest(".stop"); if (dragFrom === null || !li) return; e.preventDefault();
+  const to = +li.dataset.i, from = dragFrom; dragFrom = null;
+  if (to !== from) change(() => state.stops.splice(to, 0, state.stops.splice(from, 1)[0])); else renderStops();
+});
+$("stopsBox").addEventListener("dragend", () => { dragFrom = null; document.querySelectorAll(".stop").forEach(x => x.classList.remove("dragging","over")); });
+
+$("undo").addEventListener("click", () => {
+  const prev = history.pop(); if (!prev) return;
+  const o = JSON.parse(prev); state.company = o.company; state.name = o.name; state.stops = o.stops; renderAll();
+});
+$("clear").addEventListener("click", () => {
+  if (!state.stops.length && !state.name) return;
+  change(() => { state.stops = []; state.name = ""; state.routeId = null; });
+  toast("Started a new map. Use Undo to get the old one back.");
+});
+$("showAll").addEventListener("change", renderMap);
+
+/* map clicks: add a place, or place a new one */
+let picking = false, newXY = null;
+const mapbox = $("mapbox"), tip = $("tip");
+function svgPoint(e) {
+  const svg = $("map"), r = svg.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+}
+mapbox.addEventListener("click", e => {
+  if (picking) {
+    const p = svgPoint(e); if (!isLand(p.x, p.y)) { toast("That spot is in the sea. Click on the island."); return; }
+    newXY = { x:Math.round(p.x), y:Math.round(p.y) };
+    $("banner").classList.remove("open"); mapbox.classList.remove("picking"); picking = false;
+    $("npText").innerHTML = "<b>Add a new place.</b> Now type its name.";
+    $("npForm").classList.remove("hidden"); $("npName").focus();
+    drawTempPin(); return;
+  }
+  const g = e.target.closest(".pick"); if (g) addStop(g.dataset.id);
+});
+mapbox.addEventListener("mousemove", e => {
+  const g = e.target.closest && e.target.closest(".pick");
+  if (!g || picking) { tip.style.display = "none"; return; }
+  const P = allPlaces(), p = P[g.dataset.id], r = mapbox.getBoundingClientRect(), s = r.width / W;
+  tip.textContent = "+ " + p.name; tip.style.left = (p.x*s) + "px"; tip.style.top = (p.y*s) + "px"; tip.style.display = "block";
+});
+mapbox.addEventListener("mouseleave", () => tip.style.display = "none");
+
+/* new place */
+function drawTempPin() {
+  const svg = $("map"); const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  c.setAttribute("cx", newXY.x); c.setAttribute("cy", newXY.y); c.setAttribute("r", 11); c.setAttribute("fill", "#ef5a2a"); c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", 3); c.id = "tempPin"; svg.appendChild(c);
+}
+function closeNewPlace() {
+  picking = false; newXY = null; mapbox.classList.remove("picking"); $("banner").classList.remove("open");
+  $("newPlace").classList.remove("open"); $("npForm").classList.add("hidden"); $("npName").value = "";
+  const t = document.getElementById("tempPin"); if (t) t.remove();
+}
+$("addPlaceBtn").addEventListener("click", () => {
+  if (!db) { toast("Adding places needs saving, which isn't available in this view."); return; }
+  $("newPlace").classList.add("open"); $("npText").innerHTML = "<b>Add a new place.</b> Click on the map where the place is.";
+  $("npForm").classList.add("hidden"); picking = true; mapbox.classList.add("picking"); $("banner").classList.add("open");
+  mapbox.scrollIntoView({ behavior:"smooth", block:"nearest" });
+});
+$("bannerCancel").addEventListener("click", e => { e.stopPropagation(); closeNewPlace(); });
+$("npCancel").addEventListener("click", closeNewPlace);
+$("npSave").addEventListener("click", async () => {
+  const name = $("npName").value.trim();
+  if (!name) { toast("Type the place name first."); $("npName").focus(); return; }
+  const P = allPlaces(), same = Object.entries(P).find(([, p]) => norm(p.name) === norm(name));
+  if (same) { toast(`“${same[1].name}” is already in the list.`); return; }
+  const id = "c-" + norm(name).slice(0, 30) + "-" + Math.random().toString(36).slice(2, 6);
+  const doc = { name, x:newXY.x, y:newXY.y, label:$("npLabel").value, createdAt:new Date().toISOString() };
+  $("npSave").disabled = true;
+  try { await db.collection("places").doc(id).set(doc); custom[id] = doc; closeNewPlace(); addStop(id); toast(`Saved ${name} for the whole team`); }
+  catch (e) { toast(e && e.code === "quota_exceeded" ? "The place list is full." : "Couldn't save the place. Please try again."); }
+  finally { $("npSave").disabled = false; }
+});
+
+/* ================================================================
+   STEP 4 · download + save
+   ================================================================ */
+const toDataURL = url => url.startsWith("data:") ? Promise.resolve(url) : fetch(url).then(r => r.blob()).then(b => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); }));
+function fileName() {
+  const n = (state.name || "route-map").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "route-map";
+  return `${n}-${state.company}.png`;
+}
+async function makePNG() {
+  const P = allPlaces(), files = new Set(["base.png"]), logo = companyLogo();
+  if (logo) files.add(logo);
+  state.stops.forEach(s => P[s.to] && P[s.to].photo && files.add(P[s.to].photo));
+  const hrefs = {}; for (const f of files) hrefs[f] = await toDataURL(f);
+  const svg = buildSVG(state.stops, { logo }, hrefs);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
+  const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(img, 0, 0);
+  return c;
+}
+$("download").addEventListener("click", async () => {
+  if (state.stops.length < 2) { toast("Add at least two stops first."); return; }
+  const btn = $("download"); btn.disabled = true; btn.textContent = "Making the image…";
+  try {
+    const canvas = await makePNG();
+    if (downloads) {
+      const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+      try { await downloads.save({ filename:fileName(), data:blob }); toast("Map downloaded ✓"); }
+      catch (e) { if (!e || e.code !== "declined") showFallback(canvas); }
+    } else showFallback(canvas);
+  } catch { toast("Couldn't make the image in this browser."); }
+  finally { btn.disabled = false; btn.textContent = "⬇ Download map (PNG)"; }
+});
+function showFallback(canvas) { $("out").src = canvas.toDataURL("image/png"); $("exportBox").style.display = "block"; $("exportBox").scrollIntoView({ behavior:"smooth", block:"nearest" }); }
+
+async function saveRoute(asCopy) {
+  if (!db) { toast("Saving isn't available in this view."); return; }
+  if (!state.name.trim()) { toast("Give the route a name first (step 2)."); $("routeName").focus(); return; }
+  if (state.stops.length < 2) { toast("Add at least two stops first."); return; }
+  let id = state.routeId, name = state.name.trim();
+  if (asCopy || !id) {
+    if (asCopy) name = name + " (copy)";
+    id = "r-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+  const doc = { name, company:state.company, stops:state.stops.map(s => ({ to:s.to, mode:s.mode || "road", ...(s.label ? { label:s.label } : {}) })), updatedAt:new Date().toISOString() };
+  $("save").disabled = $("saveCopy").disabled = true;
+  try {
+    await db.collection("routes").doc(id).set(doc);
+    state.routeId = id; state.name = name; lastSavedJSON = snapshot(); renderAll();
+    toast(asCopy ? "Saved as a copy ✓" : "Route saved ✓");
+  } catch (e) {
+    toast(e && e.code === "quota_exceeded" ? "Storage is full. Delete some old routes." : e && e.code === "invalid_argument" ? "You don't have permission to save here." : "Couldn't save. Please try again.");
+  } finally { $("save").disabled = $("saveCopy").disabled = false; }
+}
+$("save").addEventListener("click", () => saveRoute(false));
+$("saveCopy").addEventListener("click", () => saveRoute(true));
+
+/* ================================================================
+   SAVED ROUTES TAB
+   ================================================================ */
+function showView(which) {
+  $("viewMake").classList.toggle("hidden", which !== "make"); $("viewSaved").classList.toggle("hidden", which !== "saved");
+  $("tabMake").classList.toggle("on", which === "make"); $("tabSaved").classList.toggle("on", which === "saved");
+}
+$("tabMake").addEventListener("click", () => showView("make"));
+$("tabSaved").addEventListener("click", () => { showView("saved"); renderSaved(); });
+$("newFromSaved").addEventListener("click", () => { if (state.stops.length) change(() => { state.stops = []; state.name = ""; state.routeId = null; }); showView("make"); $("q").focus(); });
+$("savedQ").addEventListener("input", renderSaved);
+
+function routeSummary(r) {
+  const P = allPlaces(), names = (r.stops || []).map(s => (P[s.to] || {}).name).filter(Boolean);
+  return names.length > 4 ? `${names.slice(0,2).join(" → ")} … ${names[names.length-1]} · ${names.length} stops` : names.join(" → ");
+}
+let confirmId = null;
+function renderSaved() {
+  const q = norm($("savedQ").value);
+  const list = savedRoutes.filter(r => !q || norm(r.name).includes(q)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  $("savedList").innerHTML = list.map(r => {
+    const co = COMPANIES.find(c => c.id === r.company);
+    return `<li><div class="meta"><div class="t">${esc(r.name)}</div><div class="s">${esc(co ? co.name : "")} · ${esc(routeSummary(r))}</div></div>
+      <div class="acts"><button class="mini" data-open="${esc(r.id)}">Open</button>
+      <button class="mini ${confirmId === r.id ? "confirm" : "danger"}" data-rm="${esc(r.id)}">${confirmId === r.id ? "Yes, delete" : "Delete"}</button></div></li>`;
+  }).join("");
+  if (db) $("savedStatus").textContent = savedRoutes.length ? (list.length ? "" : "No saved route matches your search.") : "No saved routes yet. Make a map and press Save route.";
+  $("savedCount").textContent = savedRoutes.length ? `(${savedRoutes.length})` : "";
+}
+$("savedList").addEventListener("click", async e => {
+  const o = e.target.closest("[data-open]"), d = e.target.closest("[data-rm]");
+  if (o) {
+    const r = savedRoutes.find(x => x.id === o.dataset.open); if (!r) return;
+    if (isDirty() && !confirm_("You have unsaved changes. Open anyway?")) return;
+    change(() => { state.routeId = r.id; state.name = r.name || ""; state.company = r.company || "viajes"; state.stops = JSON.parse(JSON.stringify(r.stops || [])); });
+    lastSavedJSON = snapshot(); renderAll(); showView("make"); toast(`Opened “${r.name}”`);
+  }
+  if (d) {
+    const id = d.dataset.rm;
+    if (confirmId !== id) { confirmId = id; renderSaved(); setTimeout(() => { if (confirmId === id) { confirmId = null; renderSaved(); } }, 4000); return; }
+    confirmId = null;
+    try { await db.collection("routes").doc(id).delete(); if (state.routeId === id) state.routeId = null; toast("Route deleted"); }
+    catch { toast("Couldn't delete. Please try again."); }
+  }
+});
+// in-page confirm (browser confirm() is blocked here): first click warns, second click proceeds
+let warned = 0;
+function confirm_(msg) { if (Date.now() - warned < 5000) { warned = 0; return true; } warned = Date.now(); toast(msg + " Click again to continue."); return false; }
+
+function renderCustom() {
+  const entries = Object.entries(custom).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  $("customList").innerHTML = entries.map(([k, p]) => `<li><div class="meta"><div class="t">📍 ${esc(p.name)}</div></div><div class="acts"><button class="mini ${confirmId === k ? "confirm" : "danger"}" data-rmp="${esc(k)}">${confirmId === k ? "Yes, delete" : "Delete"}</button></div></li>`).join("");
+  $("customStatus").textContent = entries.length ? "" : "None yet. Use “+ Place not in the list?” on the Make a map tab.";
+}
+$("customList").addEventListener("click", async e => {
+  const d = e.target.closest("[data-rmp]"); if (!d) return; const id = d.dataset.rmp;
+  const used = savedRoutes.filter(r => (r.stops || []).some(s => s.to === id));
+  if (confirmId !== id) { confirmId = id; renderCustom(); if (used.length) toast(`Used in ${used.length} saved route(s).`); setTimeout(() => { if (confirmId === id) { confirmId = null; renderCustom(); } }, 4000); return; }
+  confirmId = null;
+  try { await db.collection("places").doc(id).delete(); toast("Place deleted"); } catch { toast("Couldn't delete. Please try again."); }
+});
+
+$("exportRoutes").addEventListener("click", async () => {
+  const d = db.all(), blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), routes:d.routes, places:d.places }, null, 1)], { type:"application/json" });
+  await downloads.save({ filename:"team-routes.json", data:blob }); toast(`Exported ${Object.keys(d.routes).length} routes`);
+});
+$("importFile").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => { try { const n = db.merge(JSON.parse(fr.result)); toast(n ? `Imported ${n} route(s) and place(s)` : "Nothing new in that file."); } catch { toast("That isn't a routes file."); } };
+  fr.readAsText(f); e.target.value = "";
+});
+
+/* ================================================================
+   START-UP
+   ================================================================ */
+renderAll();
+const baseImg = new Image();
+baseImg.onload = () => {
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d"); g.drawImage(baseImg, 0, 0);
+  try { landData = g.getImageData(0, 0, W, H).data; } catch {}
+  renderMap();
+};
+baseImg.src = "base.png";
+
+/* ================================================================
+   STANDALONE STORAGE — works on any web host, no Claude needed.
+   Routes and team-added places are kept in this browser, and
+   team-routes.json (next to this page) is loaded for everyone.
+   ================================================================ */
+function localDB() {
+  const KEY = "route-map-maker-v1";
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { routes:{}, places:{} }; } catch { return { routes:{}, places:{} }; } };
+  let data = load(); data.routes = data.routes || {}; data.places = data.places || {};
+  const subs = { routes:[], places:[] };
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { toast("This browser blocked saving."); } };
+  const snap = c => ({ metadata:{ fromCache:false }, docs:Object.entries(data[c]).map(([id, v]) => ({ id, exists:true, data:() => v })) });
+  const emit = c => (subs[c] || []).forEach(f => f(snap(c)));
+  window.addEventListener("storage", e => { if (e.key === KEY) { data = load(); emit("routes"); emit("places"); } });
+  return {
+    all: () => data,
+    merge(file) {                          // add or update routes/places from a file
+      let added = 0;
+      for (const c of ["routes", "places"]) for (const [id, v] of Object.entries((file && file[c]) || {})) {
+        if (!v || typeof v !== "object") continue;
+        const cur = data[c][id];
+        if (!cur || String(v.updatedAt || "") > String(cur.updatedAt || "")) { data[c][id] = v; added++; }
+      }
+      persist(); emit("routes"); emit("places"); return added;
+    },
+    collection: c => ({
+      onSnapshot(next) { (subs[c] = subs[c] || []).push(next); setTimeout(() => next(snap(c)), 0); return () => {}; },
+      doc: id => ({
+        async set(v) { data[c] = data[c] || {}; data[c][id] = v; persist(); emit(c); },
+        async delete() { if (data[c]) delete data[c][id]; persist(); emit(c); }
+      })
+    })
+  };
+}
+const browserDownloads = {
+  async save({ filename, data }) {
+    const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
+    const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000); return { status:"saved" };
+  }
+};
+
+(async () => {
+  db = localDB(); downloads = browserDownloads;
+  $("saveHelp").innerHTML = "Routes are saved in this browser. To share them with the team, use <b>Export</b> on the Saved routes tab.";
+  try {                                    // routes published for the whole team
+    const r = await fetch("team-routes.json", { cache:"no-cache" });
+    if (r.ok) db.merge(await r.json());
+  } catch {}
+  const timer = setTimeout(() => $("savedStatus").textContent = "Saved routes are taking a while to load…", 10000);
+  db.collection("routes").onSnapshot(snap => {
+    if (!snap.metadata.fromCache) clearTimeout(timer);
+    savedRoutes = snap.docs.map(d => Object.assign({ id:d.id }, d.data()));
+    renderSaved();
+  }, () => { clearTimeout(timer); $("savedStatus").textContent = "Saved routes couldn't be loaded. Reload the page to try again."; });
+  db.collection("places").onSnapshot(snap => {
+    const next = {};
+    snap.docs.forEach(d => { const v = d.data(); if (v && typeof v.name === "string" && isFinite(v.x) && isFinite(v.y)) next[d.id] = { name:v.name.slice(0, 40), x:+v.x, y:+v.y, label:LABEL[v.label] ? v.label : "r" }; });
+    custom = next; renderCustom(); renderMap(); renderStops(); renderSaved();
+  }, () => {});
+})();
+</script>
+</body>
+</html>
