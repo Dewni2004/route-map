@@ -24,7 +24,7 @@
   .top { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--navy); color:#fff; position:sticky; top:0; z-index:20; }
   .top { padding:10px 20px; border-bottom:3px solid var(--accent); }
   .brand { display:flex; align-items:center; gap:12px; flex:1; min-width:0; }
-  .brand img { height:40px; width:auto; display:block; }
+  .brand img.brandlogo { height:74px; width:auto; display:block; margin:-4px 0; }
   .brand .bn { display:flex; flex-direction:column; line-height:1.05; min-width:0; }
   .brand .co-name { font-family:"Alegreya SC", Georgia, serif; font-weight:700; font-size:21px; letter-spacing:.3px; white-space:nowrap; }
   .brand .co-sub { font-family:"Alegreya Sans", system-ui, sans-serif; font-size:13.5px; color:#c9cbe0; display:flex; align-items:center; gap:8px; white-space:nowrap; }
@@ -34,10 +34,10 @@
   .app b { font-size:15.5px; font-weight:650; }
   .app span { font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); font-weight:700; }
   @media (max-width: 720px) {
-    .top { flex-wrap:wrap; gap:8px; }
+    .top { flex-wrap:wrap; gap:6px; }
     .divider { display:none; }
     .brand .co-sub { display:none; }
-    .brand .co-name { font-size:18px; } .brand img { height:30px; }
+    .brand img.brandlogo { height:56px; }
     .app { margin-left:auto; text-align:right; } .app b { font-size:13px; } .app span { font-size:9.5px; }
     .top .tabs { width:100%; } .top .tabs button { flex:1; }
   }
@@ -117,7 +117,7 @@
   .newplace p { margin:0 0 8px; font-size:13.5px; line-height:1.45; }
 
   /* map */
-  .mapcol { position:sticky; top:72px; }
+  .mapcol { position:sticky; top:96px; }
   .mapbox { position:relative; background:var(--navy); border-radius:14px; overflow:hidden; width:min(100%, 640px, calc((100vh - 120px) * 0.6667)); margin:0 auto; }
   @media (max-width: 900px) { .mapbox { width:100%; } }
   .mapbox.picking { cursor:crosshair; outline:3px solid var(--accent); }
@@ -159,8 +159,7 @@
 <body>
 <div class="top">
   <div class="brand">
-    <img src="brand/lotus.png" alt="">
-    <div class="bn"><span class="co-name" id="brandName">Sri Lanka Eden</span><span class="co-sub" id="brandSub">Local Travel Agency</span></div>
+    <img src="logos/viajes.png" alt="Sri Lanka Viajes Edén – Agencia Local" class="brandlogo">
     <span class="divider"></span>
     <div class="app"><b>Route Map Maker</b><span>Internal system</span></div>
   </div>
@@ -267,16 +266,14 @@
     <div class="maphint" id="maphint">Click a white dot to add that place to the route.</div>
   </div>
 </div>
-<footer><img src="brand/lotus.png" alt=""><span id="brandFoot">Sri Lanka Eden</span> · Route Map Maker · for internal staff use only</footer>
+<footer><img src="brand/lotus.png" alt=""><span id="brandFoot">Sri Lanka Viajes Edén</span> · Route Map Maker · for internal staff use only</footer>
 <div class="toast" id="toast"></div>
 
 <script>
 /* ================================================================
    BRAND — change the company name shown in the header and footer here
    ================================================================ */
-const BRAND = { name:"Sri Lanka Eden", tagline:"Local Travel Agency" };
-document.getElementById("brandName").textContent = BRAND.name;
-document.getElementById("brandSub").textContent = BRAND.tagline;
+const BRAND = { name:"Sri Lanka Viajes Edén" };   // header logo: logos/viajes.png
 document.getElementById("brandFoot").textContent = BRAND.name;
 document.title = "Route Map Maker · " + BRAND.name;
 /* ================================================================
