@@ -1,0 +1,48 @@
+ROUTE MAP MAKER – HOW TO PUT IT ONLINE
+=======================================
+
+This folder is a complete website. It needs no database or special server.
+Every file must stay together in the same folder, with the same names:
+
+  index.html          the tool
+  base.png            the clean Sri Lanka map
+  logos/              the 5 company logos
+  pins/               the round photo pins
+  brand/              your company logo for the header and the browser-tab icon
+  favicon.ico         browser-tab icon (older browsers)
+  team-routes.json    routes everyone sees when they open the tool
+
+
+OPTION A – On your own website (recommended)
+--------------------------------------------
+1. Log in to your hosting control panel (cPanel / Plesk / File Manager) or use FTP.
+2. Inside public_html, create a folder, for example:  mapas
+3. Upload everything from this folder into it (unzip first).
+4. The tool is now at:  https://www.your-domain.com/mapas/
+5. Optional: use "Directory Privacy" / "Password protect directory" in the control panel
+   so only staff with the password can open it.
+
+
+OPTION B – Free, in two minutes (Netlify)
+-----------------------------------------
+1. Go to https://app.netlify.com/drop
+2. Drag this whole folder (unzipped) onto the page.
+3. You get a link like  https://something.netlify.app  – send it to the staff.
+   (Create a free account to keep the site and choose a nicer name.)
+
+
+CHANGING THE COMPANY NAME IN THE HEADER
+---------------------------------------
+Open index.html in any text editor (Notepad is fine), find this line near the top of the script:
+  const BRAND = { name:"Sri Lanka Eden", tagline:"Local Travel Agency" };
+Change the text between the quotes, save, and upload index.html again.
+To change the header logo, replace brand/lotus.png with your own (same file name).
+
+
+HOW SAVING WORKS
+----------------
+- "Save route" stores routes in that person's browser (on that computer).
+- To share routes: Saved routes tab -> "Export routes" makes team-routes.json.
+  A colleague can load it with "Import routes file".
+- To give the routes to EVERYONE: upload that exported team-routes.json to the website,
+  replacing the old one. Everybody gets the routes the next time they open the tool.

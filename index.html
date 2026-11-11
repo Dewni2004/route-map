@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sri Lanka Viajes Edén – Route Map Generator</title>
+<title>Route Map Maker · Sri Lanka Eden</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="brand/favicon.png">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg:#f5f3ee; --card:#fff; --ink:#1b1f3b; --muted:#6b6f80; --line:#e3dfd6;
@@ -17,7 +22,27 @@
 
   /* top bar */
   .top { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--navy); color:#fff; position:sticky; top:0; z-index:20; }
-  .top h1 { font-size:17px; margin:0; font-weight:650; letter-spacing:.2px; flex:1; }
+  .top { padding:10px 20px; border-bottom:3px solid var(--accent); }
+  .brand { display:flex; align-items:center; gap:12px; flex:1; min-width:0; }
+  .brand img { height:40px; width:auto; display:block; }
+  .brand .bn { display:flex; flex-direction:column; line-height:1.05; min-width:0; }
+  .brand .co-name { font-family:"Alegreya SC", Georgia, serif; font-weight:700; font-size:21px; letter-spacing:.3px; white-space:nowrap; }
+  .brand .co-sub { font-family:"Alegreya Sans", system-ui, sans-serif; font-size:13.5px; color:#c9cbe0; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .brand .co-sub::after { content:""; width:60px; height:1.5px; background:var(--accent); }
+  .divider { width:1px; height:34px; background:rgba(255,255,255,.18); }
+  .app { display:flex; flex-direction:column; line-height:1.15; }
+  .app b { font-size:15.5px; font-weight:650; }
+  .app span { font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  @media (max-width: 720px) {
+    .top { flex-wrap:wrap; gap:8px; }
+    .divider { display:none; }
+    .brand .co-sub { display:none; }
+    .brand .co-name { font-size:18px; } .brand img { height:30px; }
+    .app { margin-left:auto; text-align:right; } .app b { font-size:13px; } .app span { font-size:9.5px; }
+    .top .tabs { width:100%; } .top .tabs button { flex:1; }
+  }
+  footer { text-align:center; font-size:12.5px; color:var(--muted); padding:8px 20px 28px; }
+  footer img { height:16px; vertical-align:-3px; margin-right:6px; }
   .top .tabs { display:flex; background:rgba(255,255,255,.1); border-radius:10px; padding:3px; }
   .top .tabs button { background:none; border:0; color:#fff; padding:7px 14px; border-radius:8px; font-size:14px; opacity:.8; }
   .top .tabs button.on { background:#fff; color:var(--navy); opacity:1; font-weight:600; }
@@ -133,7 +158,12 @@
 </head>
 <body>
 <div class="top">
-  <h1>Route Map Maker</h1>
+  <div class="brand">
+    <img src="brand/lotus.png" alt="">
+    <div class="bn"><span class="co-name" id="brandName">Sri Lanka Eden</span><span class="co-sub" id="brandSub">Local Travel Agency</span></div>
+    <span class="divider"></span>
+    <div class="app"><b>Route Map Maker</b><span>Internal system</span></div>
+  </div>
   <div class="tabs" role="tablist">
     <button class="on" id="tabMake" role="tab">Make a map</button>
     <button id="tabSaved" role="tab">Saved routes <span id="savedCount"></span></button>
@@ -237,9 +267,18 @@
     <div class="maphint" id="maphint">Click a white dot to add that place to the route.</div>
   </div>
 </div>
+<footer><img src="brand/lotus.png" alt=""><span id="brandFoot">Sri Lanka Eden</span> · Route Map Maker · for internal staff use only</footer>
 <div class="toast" id="toast"></div>
 
 <script>
+/* ================================================================
+   BRAND — change the company name shown in the header and footer here
+   ================================================================ */
+const BRAND = { name:"Sri Lanka Eden", tagline:"Local Travel Agency" };
+document.getElementById("brandName").textContent = BRAND.name;
+document.getElementById("brandSub").textContent = BRAND.tagline;
+document.getElementById("brandFoot").textContent = BRAND.name;
+document.title = "Route Map Maker · " + BRAND.name;
 /* ================================================================
    PLACES — positions are pixels on base.png (1050 × 1575).
    label: name position (l, r, t, b, tl, tr, bl, br) · photo: round photo pin
