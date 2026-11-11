@@ -31,12 +31,12 @@ OPTION B – Free, in two minutes (Netlify)
    (Create a free account to keep the site and choose a nicer name.)
 
 
-CHANGING THE NAME IN THE FOOTER
+CHANGING THE COMPANY NAME IN THE HEADER
 ---------------------------------------
 Open index.html in any text editor (Notepad is fine), find this line near the top of the script:
-  const BRAND = { name:"Sri Lanka Viajes Edén" };
+  const BRAND = { name:"Sri Lanka Viajes Edén", tagline:"Local Travel Agency" };
 Change the name between the quotes, save, and upload index.html again.
-The header shows logos/viajes.png. To use a different logo there, replace that file (same name).
+To change the header logo, replace brand/lotus.png with your own (same file name).
 
 
 HOW SAVING WORKS
