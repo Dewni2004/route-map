@@ -5,7 +5,7 @@ This folder is a complete website. It needs no database or special server.
 Every file must stay together in the same folder, with the same names:
 
   index.html          the tool
-  base.png            the clean Sri Lanka map
+  base.jpg            the Sri Lanka base map
   logos/              the 5 company logos
   pins/               the round photo pins
   brand/              your company logo for the header and the browser-tab icon
@@ -37,6 +37,13 @@ Open index.html in any text editor (Notepad is fine), find this line near the to
   const BRAND = { name:"Sri Lanka Viajes Edén", tagline:"Local Travel Agency" };
 Change the name between the quotes, save, and upload index.html again.
 To change the header logo, replace brand/lotus.png with your own (same file name).
+
+
+PLACE PHOTOS
+------------
+On any stop, press "Add photo" and choose a picture. It is cropped into a circle
+and appears on every map with that place. Use "Photo: ..." to move or hide it.
+Photos are shared the same way as routes: Export -> team-routes.json.
 
 
 HOW SAVING WORKS

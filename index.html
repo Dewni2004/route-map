@@ -81,6 +81,11 @@
   .stops { list-style:none; margin:14px 0 0; padding:0; }
   .stopempty { border:2px dashed var(--line); border-radius:12px; padding:18px; text-align:center; color:var(--muted); font-size:14px; line-height:1.5; margin-top:14px; }
   .stop { display:flex; align-items:center; gap:8px; background:#faf9f6; border:1px solid var(--line); border-radius:10px; padding:8px 8px 8px 6px; }
+  .stop { flex-wrap:wrap; row-gap:6px; }
+  .stop .opts { flex-basis:100%; display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding-left:58px; }
+  .stop .opts select { border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--muted); max-width:none; font-size:12px; padding:4px 5px; }
+  .photobtn { padding:4px 9px !important; font-size:12px !important; }
+  .thumb { width:30px; height:30px; border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:0 0 0 1px var(--line); flex:none; }
   .stop.dragging { opacity:.4; }
   .stop.over { outline:2px solid var(--accent); }
   .grip { cursor:grab; color:#a9a59b; padding:0 2px; font-size:16px; user-select:none; }
@@ -153,6 +158,9 @@
   .exportbox img { width:100%; border-radius:10px; display:block; }
   .exportbox p { font-size:13px; color:var(--muted); margin:6px 0 0; }
   .hidden { display:none !important; }
+  .looks { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin-top:12px; font-size:13.5px; color:var(--muted); background:#faf9f6; border:1px solid var(--line); border-radius:10px; padding:9px 12px; }
+  .looks span { font-weight:600; color:var(--ink); }
+  .looks label { display:flex; gap:5px; align-items:center; cursor:pointer; }
   .unsaved { font-size:12px; color:var(--accent); font-weight:600; margin-left:6px; }
 </style>
 </head>
@@ -224,6 +232,13 @@
           <button class="btn light" id="saveCopy">Save as a copy</button>
           <label class="check" style="margin-left:auto"><input type="checkbox" id="showAll" checked> Show all places</label>
         </div>
+        <div class="looks" id="looks">
+          <span>Map style:</span>
+          <label><input type="checkbox" data-look="numbers"> Stop numbers</label>
+          <label><input type="checkbox" data-look="arrows"> Direction arrows</label>
+          <label><input type="checkbox" data-look="title"> Title box</label>
+          <label><input type="checkbox" data-look="compass"> Compass</label>
+        </div>
         <p class="help" id="saveHelp">Routes are saved in this browser.</p>
         <div class="exportbox" id="exportBox">
           <img id="out" alt="Your route map">
@@ -249,6 +264,12 @@
           <input type="file" id="importFile" accept=".json,application/json" hidden>
         </div>
       </div>
+      <div class="card">
+        <div class="step">Place photos</div>
+        <p class="help" style="margin-top:0">A photo added for a place appears on every map that includes it.</p>
+        <ul class="saved" id="photoList"></ul>
+        <div class="status" id="photoStatus"></div>
+      </div>
       <div class="card" id="customCard">
         <div class="step">Places your team added</div>
         <ul class="saved" id="customList"></ul>
@@ -268,6 +289,7 @@
   </div>
 </div>
 <footer><img src="brand/lotus.png" alt=""><span id="brandFoot">Sri Lanka Viajes Edén</span> · Route Map Maker · for internal staff use only</footer>
+<input type="file" id="photoFile" accept="image/*" hidden>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -370,12 +392,28 @@ const $ = id => document.getElementById(id);
 
 /* ---------------- state ---------------- */
 let custom = {};                    // team-added places from the database
-const allPlaces = () => Object.assign({}, PLACES, custom);
-const state = { company:"viajes", name:"", stops:[], routeId:null };
+let photos = {};                    // uploaded place photos: placeId -> image data
+const allPlaces = () => {
+  const P = {};
+  for (const [k, v] of Object.entries(Object.assign({}, PLACES, custom))) P[k] = photos[k] ? Object.assign({}, v, { photo:photos[k] }) : v;
+  return P;
+};
+const PHOTO_POS = { tl:[-80,-72], tr:[80,-72], bl:[-80,72], br:[80,72] };
+function photoOffset(p, stop) {
+  if (stop.photoPos && PHOTO_POS[stop.photoPos]) return PHOTO_POS[stop.photoPos];
+  if (p.photoAt) return p.photoAt;
+  const lab = (stop.label && LABEL[stop.label]) || p.labelAt || LABEL[p.label] || LABEL.r;
+  let [ox, oy] = lab[2] === "end" ? PHOTO_POS.tr : PHOTO_POS.tl;   // photo on the side away from the name
+  if (p.x + ox < 60 || p.x + ox > W - 60) ox = -ox;
+  if (p.y + oy < 60) oy = -oy;
+  return [ox, oy];
+}
+const DEFAULT_LOOK = { numbers:true, arrows:true, title:true, compass:true };
+const state = { company:"viajes", name:"", stops:[], routeId:null, look:Object.assign({}, DEFAULT_LOOK) };
 let savedRoutes = [], lastSavedJSON = null, history = [], landData = null;
 let db = null, downloads = null;
 
-function snapshot() { return JSON.stringify({ company:state.company, name:state.name, stops:state.stops }); }
+function snapshot() { return JSON.stringify({ company:state.company, name:state.name, stops:state.stops, look:state.look }); }
 function change(fn) {               // every edit goes through here so Undo works
   history.push(snapshot()); if (history.length > 60) history.shift();
   fn(); renderAll();
@@ -397,47 +435,75 @@ function buildSVG(stops, opts, hrefs) {
   const legs = stops.filter(s => P[s.to]);
   const pts = legs.map(l => P[l.to]);
   const H_ = k => (hrefs && hrefs[k]) || k;
+  const look = Object.assign({ numbers:true, arrows:true, title:true, compass:true }, opts.look || {});
   let s = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
-  s += `<defs>${Object.keys(P).filter(k => P[k].photo).map(k => `<clipPath id="c-${esc(k)}"><circle r="${STYLE.photoR}"/></clipPath>`).join("")}</defs>`;
-  s += `<image href="${H_("base.png")}" xlink:href="${H_("base.png")}" x="0" y="0" width="${W}" height="${H}"/>`;
+  s += `<defs>${Object.keys(P).filter(k => P[k].photo).map(k => `<clipPath id="c-${esc(k)}"><circle r="${STYLE.photoR}"/></clipPath>`).join("")}
+    <filter id="sh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.38"/></filter>
+    <filter id="shs" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000" flood-opacity="0.35"/></filter>
+  </defs>`;
+  s += `<image href="${H_("base.jpg")}" xlink:href="${H_("base.jpg")}" x="0" y="0" width="${W}" height="${H}"/>`;
   if (opts.logo) { const B = STYLE.logoBox; s += `<image href="${H_(opts.logo)}" xlink:href="${H_(opts.logo)}" x="${B.x}" y="${B.y}" width="${B.w}" height="${B.h}" preserveAspectRatio="xMidYMid meet"/>`; }
+  if (look.compass) s += compass(78, 92);
 
-  // route
-  const T = 0.14;
+  // route: white edge first, then the coloured line, then direction arrows
+  const T = 0.14, segs = [];
   for (let i = 1; i < pts.length; i++) {
     const p0 = pts[Math.max(0,i-2)], p1 = pts[i-1], p2 = pts[i], p3 = pts[Math.min(pts.length-1,i+1)];
     const c1 = [p1.x + (p2.x-p0.x)*T, p1.y + (p2.y-p0.y)*T], c2 = [p2.x - (p3.x-p1.x)*T, p2.y - (p3.y-p1.y)*T];
-    const mode = legs[i].mode || "road";
-    const st = mode === "train" ? `stroke="${STYLE.train}" stroke-dasharray="10 7"`
-             : mode === "safari" ? `stroke="${STYLE.safari}" stroke-dasharray="2 9" stroke-linecap="round"` : `stroke="${STYLE.route}"`;
-    const sw = mode === "safari" ? 6 : STYLE.routeWidth;
-    s += `<path d="M${f1(p1.x)},${f1(p1.y)} C${f1(c1[0])},${f1(c1[1])} ${f1(c2[0])},${f1(c2[1])} ${f1(p2.x)},${f1(p2.y)}" fill="none" stroke-width="${sw}" ${st}/>`;
-    if (mode !== "road") {
+    segs.push({ p1, p2, c1, c2, mode:legs[i].mode || "road", d:`M${f1(p1.x)},${f1(p1.y)} C${f1(c1[0])},${f1(c1[1])} ${f1(c2[0])},${f1(c2[1])} ${f1(p2.x)},${f1(p2.y)}` });
+  }
+  for (const g of segs) s += `<path d="${g.d}" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="${g.mode === "safari" ? 10 : 8.5}" stroke-linecap="round"/>`;
+  for (const g of segs) {
+    const st = g.mode === "train" ? `stroke="${STYLE.train}" stroke-dasharray="11 7"`
+             : g.mode === "safari" ? `stroke="${STYLE.safari}" stroke-dasharray="1 10" stroke-linecap="round"` : `stroke="${STYLE.route}" stroke-linecap="round"`;
+    s += `<path d="${g.d}" fill="none" stroke-width="${g.mode === "safari" ? 6.5 : 4.5}" ${st}/>`;
+  }
+  for (const g of segs) {
+    const { p1, p2, c1, c2 } = g, len = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+    if (look.arrows && len > 80) {
+      const t = 0.5, u = 1 - t;
+      const x = u*u*u*p1.x + 3*u*u*t*c1[0] + 3*u*t*t*c2[0] + t*t*t*p2.x, y = u*u*u*p1.y + 3*u*u*t*c1[1] + 3*u*t*t*c2[1] + t*t*t*p2.y;
+      const tx = 3*u*u*(c1[0]-p1.x) + 6*u*t*(c2[0]-c1[0]) + 3*t*t*(p2.x-c2[0]), ty = 3*u*u*(c1[1]-p1.y) + 6*u*t*(c2[1]-c1[1]) + 3*t*t*(p2.y-c2[1]);
+      const ang = Math.atan2(ty, tx) * 180 / Math.PI, col = g.mode === "train" ? STYLE.train : g.mode === "safari" ? STYLE.safari : STYLE.route;
+      s += `<path d="M-8,-7 L7,0 L-8,7 Z" transform="translate(${f1(x)},${f1(y)}) rotate(${f1(ang)})" fill="${col}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`;
+    }
+    if (g.mode !== "road") {
       const mx = .125*p1.x + .375*c1[0] + .375*c2[0] + .125*p2.x, my = .125*p1.y + .375*c1[1] + .375*c2[1] + .125*p2.y;
-      const dx = p2.x-p1.x, dy = p2.y-p1.y, len = Math.hypot(dx,dy) || 1;
-      s += badge(mx - (dy/len)*34, my + (dx/len)*34, mode);
+      const dx = p2.x-p1.x, dy = p2.y-p1.y, l = Math.hypot(dx,dy) || 1;
+      s += badge(mx - (dy/l)*38, my + (dx/l)*38, g.mode);
     }
   }
   // photos + airport
   const seen = []; legs.forEach(l => { if (!seen.includes(l.to)) seen.push(l.to); });
   for (const k of seen) {
     const p = P[k];
-    if (p.photo) {
-      const [ox, oy] = p.photoAt || [-90,-60];
-      s += `<g transform="translate(${p.x+ox},${p.y+oy})"><circle r="${STYLE.photoR+3}" fill="#fff"/><image href="${H_(p.photo)}" xlink:href="${H_(p.photo)}" x="${-STYLE.photoR}" y="${-STYLE.photoR}" width="${STYLE.photoR*2}" height="${STYLE.photoR*2}" clip-path="url(#c-${esc(k)})"/></g>`;
+    const stopOpt = legs.find(l => l.to === k) || {};
+    if (p.photo && stopOpt.photo !== false) {
+      const [ox, oy] = photoOffset(p, stopOpt);
+      s += `<g transform="translate(${p.x+ox},${p.y+oy})" filter="url(#sh)"><circle r="${STYLE.photoR+5}" fill="#fff"/><image href="${H_(p.photo)}" xlink:href="${H_(p.photo)}" x="${-STYLE.photoR}" y="${-STYLE.photoR}" width="${STYLE.photoR*2}" height="${STYLE.photoR*2}" clip-path="url(#c-${esc(k)})" preserveAspectRatio="xMidYMid slice"/></g>`;
     }
     if (p.badge === "plane") { const [bx, by] = p.badgeAt || [40,-20]; s += badge(p.x+bx, p.y+by, "plane", true); }
   }
-  // dots + names (a stop may override the name position)
+  // stop markers (numbered) + names
+  const R = look.numbers ? 15 : STYLE.dotR, pad = look.numbers ? 7 : 0;
   for (const k of seen) {
-    const p = P[k], over = (legs.find(l => l.to === k) || {}).label;
-    s += `<circle cx="${p.x}" cy="${p.y}" r="${STYLE.dotR}" fill="${STYLE.dotFill}" stroke="${STYLE.dotRing}" stroke-width="3"/>`;
-    const [dx, dy, anchor] = (over && LABEL[over]) || p.labelAt || LABEL[p.label] || LABEL.r;
+    const p = P[k], over = (legs.find(l => l.to === k) || {}).label, n = legs.findIndex(l => l.to === k) + 1;
+    if (look.numbers) {
+      s += `<g filter="url(#shs)"><circle cx="${p.x}" cy="${p.y}" r="${R}" fill="${STYLE.dotFill}" stroke="#ffffff" stroke-width="3"/></g>`;
+      s += `<circle cx="${p.x}" cy="${p.y}" r="${R-3.5}" fill="none" stroke="${STYLE.dotRing}" stroke-width="2"/>`;
+      s += `<text x="${p.x}" y="${p.y + 5.5}" text-anchor="middle" font-family="${STYLE.font}" font-size="${n > 9 ? 13.5 : 15.5}" font-weight="700" fill="#fff">${n}</text>`;
+    } else {
+      s += `<circle cx="${p.x}" cy="${p.y}" r="${STYLE.dotR}" fill="${STYLE.dotFill}" stroke="${STYLE.dotRing}" stroke-width="3"/>`;
+    }
+    let [dx, dy, anchor] = (over && LABEL[over]) || p.labelAt || LABEL[p.label] || LABEL.r;
+    if (pad) { if (anchor === "end") dx -= pad; else if (anchor === "start") dx += pad; if (dy < 0) dy -= pad*0.6; else if (dy > 20) dy += pad*0.6; }
     const tx = p.x+dx, ty = p.y+dy, w = String(p.name).length * STYLE.fontSize * .52;
     const cx = anchor === "end" ? tx - w/2 : anchor === "start" ? tx + w/2 : tx;
     const land = isLand(cx, ty - STYLE.fontSize*.35);
-    s += `<text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" font-family="${STYLE.font}" font-size="${STYLE.fontSize}" fill="${land ? STYLE.textLand : STYLE.textSea}" stroke="${land ? "#fff38a" : "#1a1b44"}" stroke-width="5" stroke-linejoin="round" paint-order="stroke">${esc(p.name)}</text>`;
+    s += `<text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" font-family="${STYLE.font}" font-size="${STYLE.fontSize}" font-weight="600" fill="${land ? STYLE.textLand : STYLE.textSea}" stroke="${land ? "#fff6b0" : "#141634"}" stroke-width="6" stroke-linejoin="round" paint-order="stroke">${esc(p.name)}</text>`;
   }
+  // title + legend card in the empty sea corner (bottom right)
+  if (look.title && legs.length >= 2) s += titleCard(opts.title || "", legs);
   // clickable layer (screen only, never in the download)
   if (opts.pickLayer) {
     s += `<g id="pickLayer">`;
@@ -449,11 +515,39 @@ function buildSVG(stops, opts, hrefs) {
   }
   return s + `</svg>`;
 }
+function compass(x, y) {
+  return `<g transform="translate(${x},${y})" opacity="0.9">
+    <circle r="38" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+    <circle r="30" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+    <path d="M0,-34 L8,0 L0,-6 L-8,0 Z" fill="${STYLE.route}"/><path d="M0,34 L8,0 L0,6 L-8,0 Z" fill="#ffffff" fill-opacity="0.75"/>
+    <path d="M-34,0 L0,6 L-6,0 L0,-6 Z M34,0 L0,6 L6,0 L0,-6 Z" fill="#ffffff" fill-opacity="0.45"/>
+    <text y="-44" text-anchor="middle" font-family="${STYLE.font}" font-size="17" font-weight="700" fill="#ffffff">N</text></g>`;
+}
+function titleCard(title, legs) {
+  const x = 690, y = 1466, w = 342, h = 92;
+  const used = ["road","train","safari"].filter(m => legs.slice(1).some(l => (l.mode || "road") === m));
+  const stopsN = new Set(legs.map(l => l.to)).size;
+  const t = String(title).trim(), fs = t ? Math.max(15, Math.min(26, 318 / (t.length * 0.53))) : 0;
+  let g = `<g filter="url(#sh)"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="#10122e" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.15"/></g>`;
+  g += `<rect x="${x}" y="${y+14}" width="4" height="${h-28}" rx="2" fill="${STYLE.route}"/>`;
+  const ty = t ? y + 36 : y + 30;
+  if (t) g += `<text x="${x+18}" y="${ty}" font-family="${STYLE.font}" font-size="${f1(fs)}" font-weight="700" fill="#ffffff">${esc(t)}</text>`;
+  let lx = x + 18; const ly = t ? y + 70 : y + 58;
+  g += `<text x="${lx}" y="${ly + 5}" font-family="${STYLE.font}" font-size="14" fill="#c9cbe0">${stopsN} stops</text>`; lx += String(stopsN).length * 8 + 56;
+  for (const m of used) {
+    const col = m === "train" ? "#ffffff" : m === "safari" ? "#3fbf62" : STYLE.route;
+    const dash = m === "train" ? `stroke-dasharray="8 5"` : m === "safari" ? `stroke-dasharray="1 7" stroke-linecap="round"` : "";
+    g += `<line x1="${lx}" y1="${ly}" x2="${lx+20}" y2="${ly}" stroke="${col}" stroke-width="${m === "safari" ? 5 : 4}" ${dash}/>`;
+    const label = m === "road" ? "Road" : m === "train" ? "Train" : "Safari";
+    g += `<text x="${lx+26}" y="${ly + 5}" font-family="${STYLE.font}" font-size="14" fill="#ffffff">${label}</text>`; lx += 26 + label.length * 8 + 14;
+  }
+  return g;
+}
 function badge(x, y, kind, diamond) {
   const size = 46;
   const shape = diamond ? `<rect x="${-size/2}" y="${-size/2}" width="${size}" height="${size}" rx="6" transform="rotate(45)" fill="${STYLE.badgeBg}"/>`
                         : `<rect x="${-size/2}" y="${-size/2}" width="${size}" height="${size}" rx="8" fill="${STYLE.badgeBg}"/>`;
-  return `<g transform="translate(${f1(x)},${f1(y)})">${shape}<path d="${ICONS[kind]}" fill="${STYLE.badgeIcon}" transform="scale(1.35) translate(-12,-12)"/></g>`;
+  return `<g transform="translate(${f1(x)},${f1(y)})" filter="url(#sh)">${shape}<path d="${ICONS[kind]}" fill="${STYLE.badgeIcon}" transform="scale(1.35) translate(-12,-12)"/></g>`;
 }
 const companyLogo = () => (COMPANIES.find(c => c.id === state.company) || {}).logo || null;
 
@@ -475,21 +569,30 @@ function renderStops() {
     if (i > 0) {
       h += `<li class="leg">to ${esc(name)} by <span class="seg">${MODES.map(([m, t]) => `<button class="${m} ${ (s.mode||"road") === m ? "on" : ""}" data-mode="${m}" data-i="${i}">${t}</button>`).join("")}</span></li>`;
     }
+    const hasPhoto = p && p.photo;
+    const pv = s.photo === false ? "off" : (s.photoPos || "");
     h += `<li class="stop" draggable="true" data-i="${i}">
       <span class="grip" title="Drag to move">⋮⋮</span><span class="num">${i+1}</span>
+      ${hasPhoto ? `<img class="thumb" src="${esc(p.photo)}" alt="">` : ""}
       <span class="pname" title="${esc(name)}">${esc(name)}</span>
-      <select class="lab" data-i="${i}" title="Where the name sits on the map">
-        ${[["","Name: auto"],["r","Name: right"],["l","Name: left"],["t","Name: top"],["b","Name: bottom"]].map(([v,t]) => `<option value="${v}" ${ (s.label||"") === v ? "selected" : ""}>${t}</option>`).join("")}
-      </select>
       <button class="ib" data-up="${i}" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
       <button class="ib" data-down="${i}" title="Move down" ${i === state.stops.length-1 ? "disabled" : ""}>↓</button>
-      <button class="ib del" data-del="${i}" title="Remove">✕</button></li>`;
+      <button class="ib del" data-del="${i}" title="Remove">✕</button>
+      <div class="opts">
+        <select class="lab" data-i="${i}" title="Where the name sits on the map">
+          ${[["","Name: auto"],["r","Name: right"],["l","Name: left"],["t","Name: top"],["b","Name: bottom"]].map(([v,t]) => `<option value="${v}" ${ (s.label||"") === v ? "selected" : ""}>${t}</option>`).join("")}
+        </select>
+        ${hasPhoto ? `<select class="pho" data-i="${i}" title="Where the photo sits on the map">
+          ${[["","Photo: auto"],["tl","Photo: top left"],["tr","Photo: top right"],["bl","Photo: bottom left"],["br","Photo: bottom right"],["off","Photo: hide"]].map(([v,t]) => `<option value="${v}" ${pv === v ? "selected" : ""}>${t}</option>`).join("")}
+        </select>` : ""}
+        ${p ? `<button class="mini photobtn" data-photo="${esc(s.to)}">📷 ${hasPhoto ? "Change photo" : "Add photo"}</button>` : ""}
+      </div></li>`;
   });
   box.innerHTML = h + `</ul>`;
 }
 
 function renderMap() {
-  const svg = buildSVG(state.stops, { logo:companyLogo(), pickLayer:$("showAll").checked });
+  const svg = buildSVG(state.stops, { logo:companyLogo(), pickLayer:$("showAll").checked, title:state.name, look:state.look });
   const doc = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
   doc.id = "map"; $("map").replaceWith(doc);
   $("maphint").textContent = $("showAll").checked ? "Click a white dot to add that place to the route." : "Tick “Show all places” to pick places on the map.";
@@ -499,6 +602,7 @@ function renderAll() {
   renderCompanies(); renderStops(); renderMap();
   $("undo").disabled = !history.length;
   $("routeName").value = state.name;
+  document.querySelectorAll("#looks [data-look]").forEach(c => c.checked = !!state.look[c.dataset.look]);
   $("unsaved").classList.toggle("hidden", !isDirty());
   $("save").textContent = state.routeId ? "💾 Save changes" : "💾 Save route";
   $("saveCopy").classList.toggle("hidden", !state.routeId);
@@ -570,9 +674,14 @@ $("stopsBox").addEventListener("click", e => {
   else if (t.dataset.up) { const i = +t.dataset.up; change(() => state.stops.splice(i-1, 0, state.stops.splice(i, 1)[0])); }
   else if (t.dataset.down) { const i = +t.dataset.down; change(() => state.stops.splice(i+1, 0, state.stops.splice(i, 1)[0])); }
   else if (t.dataset.del) { const i = +t.dataset.del; change(() => state.stops.splice(i, 1)); }
+  else if (t.dataset.photo) { photoTarget = t.dataset.photo; $("photoFile").click(); }
 });
 $("stopsBox").addEventListener("change", e => {
   if (e.target.matches("select.lab")) { const i = +e.target.dataset.i, v = e.target.value; change(() => { if (v) state.stops[i].label = v; else delete state.stops[i].label; }); }
+  if (e.target.matches("select.pho")) {
+    const i = +e.target.dataset.i, v = e.target.value;
+    change(() => { const st = state.stops[i]; delete st.photoPos; delete st.photo; if (v === "off") st.photo = false; else if (v) st.photoPos = v; });
+  }
 });
 // drag and drop
 let dragFrom = null;
@@ -587,14 +696,17 @@ $("stopsBox").addEventListener("dragend", () => { dragFrom = null; document.quer
 
 $("undo").addEventListener("click", () => {
   const prev = history.pop(); if (!prev) return;
-  const o = JSON.parse(prev); state.company = o.company; state.name = o.name; state.stops = o.stops; renderAll();
+  const o = JSON.parse(prev); state.company = o.company; state.name = o.name; state.stops = o.stops; state.look = o.look || Object.assign({}, DEFAULT_LOOK); renderAll();
 });
 $("clear").addEventListener("click", () => {
   if (!state.stops.length && !state.name) return;
-  change(() => { state.stops = []; state.name = ""; state.routeId = null; });
+  change(() => { state.stops = []; state.name = ""; state.routeId = null; state.look = Object.assign({}, DEFAULT_LOOK); });
   toast("Started a new map. Use Undo to get the old one back.");
 });
 $("showAll").addEventListener("change", renderMap);
+$("looks").addEventListener("change", e => { const k = e.target.dataset.look; if (k) change(() => state.look = Object.assign({}, state.look, { [k]: e.target.checked })); });
+// title box follows the route name as you type
+$("routeName").addEventListener("input", () => { clearTimeout(window.__nm); window.__nm = setTimeout(renderMap, 250); });
 
 /* map clicks: add a place, or place a new one */
 let picking = false, newXY = null;
@@ -662,11 +774,11 @@ function fileName() {
   return `${n}-${state.company}.png`;
 }
 async function makePNG() {
-  const P = allPlaces(), files = new Set(["base.png"]), logo = companyLogo();
+  const P = allPlaces(), files = new Set(["base.jpg"]), logo = companyLogo();
   if (logo) files.add(logo);
   state.stops.forEach(s => P[s.to] && P[s.to].photo && files.add(P[s.to].photo));
   const hrefs = {}; for (const f of files) hrefs[f] = await toDataURL(f);
-  const svg = buildSVG(state.stops, { logo }, hrefs);
+  const svg = buildSVG(state.stops, { logo, title:state.name, look:state.look }, hrefs);
   const img = new Image();
   await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
   const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(img, 0, 0);
@@ -696,14 +808,14 @@ async function saveRoute(asCopy) {
     if (asCopy) name = name + " (copy)";
     id = "r-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
-  const doc = { name, company:state.company, stops:state.stops.map(s => ({ to:s.to, mode:s.mode || "road", ...(s.label ? { label:s.label } : {}) })), updatedAt:new Date().toISOString() };
+  const doc = { name, company:state.company, stops:state.stops.map(s => ({ to:s.to, mode:s.mode || "road", ...(s.label ? { label:s.label } : {}), ...(s.photo === false ? { photo:false } : {}), ...(s.photoPos ? { photoPos:s.photoPos } : {}) })), look:state.look, updatedAt:new Date().toISOString() };
   $("save").disabled = $("saveCopy").disabled = true;
   try {
     await db.collection("routes").doc(id).set(doc);
     state.routeId = id; state.name = name; lastSavedJSON = snapshot(); renderAll();
     toast(asCopy ? "Saved as a copy ✓" : "Route saved ✓");
   } catch (e) {
-    toast(e && e.code === "quota_exceeded" ? "Storage is full. Delete some old routes." : e && e.code === "invalid_argument" ? "You don't have permission to save here." : "Couldn't save. Please try again.");
+    toast(e && (e.code === "quota_exceeded" || e.message === "full") ? "Storage is full. Delete some old routes or photos." : e && e.code === "invalid_argument" ? "You don't have permission to save here." : "Couldn't save. Please try again.");
   } finally { $("save").disabled = $("saveCopy").disabled = false; }
 }
 $("save").addEventListener("click", () => saveRoute(false));
@@ -743,7 +855,7 @@ $("savedList").addEventListener("click", async e => {
   if (o) {
     const r = savedRoutes.find(x => x.id === o.dataset.open); if (!r) return;
     if (isDirty() && !confirm_("You have unsaved changes. Open anyway?")) return;
-    change(() => { state.routeId = r.id; state.name = r.name || ""; state.company = r.company || "viajes"; state.stops = JSON.parse(JSON.stringify(r.stops || [])); });
+    change(() => { state.routeId = r.id; state.name = r.name || ""; state.company = r.company || "viajes"; state.stops = JSON.parse(JSON.stringify(r.stops || [])); state.look = Object.assign({}, DEFAULT_LOOK, r.look || {}); });
     lastSavedJSON = snapshot(); renderAll(); showView("make"); toast(`Opened “${r.name}”`);
   }
   if (d) {
@@ -772,14 +884,56 @@ $("customList").addEventListener("click", async e => {
 });
 
 $("exportRoutes").addEventListener("click", async () => {
-  const d = db.all(), blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), routes:d.routes, places:d.places }, null, 1)], { type:"application/json" });
+  const d = db.all(), blob = new Blob([JSON.stringify({ exportedAt:new Date().toISOString(), routes:d.routes, places:d.places, photos:d.photos }, null, 1)], { type:"application/json" });
   await downloads.save({ filename:"team-routes.json", data:blob }); toast(`Exported ${Object.keys(d.routes).length} routes`);
 });
 $("importFile").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   const fr = new FileReader();
-  fr.onload = () => { try { const n = db.merge(JSON.parse(fr.result)); toast(n ? `Imported ${n} route(s) and place(s)` : "Nothing new in that file."); } catch { toast("That isn't a routes file."); } };
+  fr.onload = () => { try { const n = db.merge(JSON.parse(fr.result)); toast(n ? `Imported ${n} route(s), place(s) and photo(s)` : "Nothing new in that file."); } catch { toast("That isn't a routes file."); } };
   fr.readAsText(f); e.target.value = "";
+});
+
+/* ================================================================
+   PLACE PHOTOS — upload once per place, used on every route
+   ================================================================ */
+let photoTarget = null;
+function squarePhoto(file, size = 320) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(img.naturalWidth, img.naturalHeight), c = document.createElement("canvas");
+      c.width = c.height = size; const g = c.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
+$("photoFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f || !photoTarget) return;
+  const id = photoTarget, name = (allPlaces()[id] || {}).name || "this place"; photoTarget = null;
+  try {
+    const data = await squarePhoto(f);
+    await db.collection("photos").doc(id).set({ data, updatedAt:new Date().toISOString() });
+    toast(`Photo added for ${name} ✓`);
+  } catch (err) { toast(err && err.message === "full" ? "Browser storage is full. Delete some photos first." : "That file couldn't be used as a photo. Try a JPG or PNG."); }
+});
+function renderPhotoList() {
+  const P = allPlaces(), ids = Object.keys(photos).filter(k => P[k]).sort((a, b) => P[a].name.localeCompare(P[b].name));
+  $("photoList").innerHTML = ids.map(k => `<li><img class="thumb" src="${esc(photos[k])}" alt=""><div class="meta"><div class="t">${esc(P[k].name)}</div></div><div class="acts"><button class="mini" data-photo2="${esc(k)}">Change</button><button class="mini ${confirmId === "ph-"+k ? "confirm" : "danger"}" data-rmph="${esc(k)}">${confirmId === "ph-"+k ? "Yes, remove" : "Remove"}</button></div></li>`).join("");
+  $("photoStatus").textContent = ids.length ? "" : "No photos yet. On the Make a map tab, press “📷 Add photo” on any stop.";
+}
+$("photoList").addEventListener("click", async e => {
+  const c = e.target.closest("[data-photo2]"), d = e.target.closest("[data-rmph]");
+  if (c) { photoTarget = c.dataset.photo2; $("photoFile").click(); }
+  if (d) {
+    const k = d.dataset.rmph;
+    if (confirmId !== "ph-"+k) { confirmId = "ph-"+k; renderPhotoList(); setTimeout(() => { if (confirmId === "ph-"+k) { confirmId = null; renderPhotoList(); } }, 4000); return; }
+    confirmId = null; await db.collection("photos").doc(k).delete(); toast("Photo removed");
+  }
 });
 
 /* ================================================================
@@ -792,7 +946,7 @@ baseImg.onload = () => {
   try { landData = g.getImageData(0, 0, W, H).data; } catch {}
   renderMap();
 };
-baseImg.src = "base.png";
+baseImg.src = "base.jpg";
 
 /* ================================================================
    STANDALONE STORAGE — works on any web host, no Claude needed.
@@ -801,28 +955,33 @@ baseImg.src = "base.png";
    ================================================================ */
 function localDB() {
   const KEY = "route-map-maker-v1";
-  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { routes:{}, places:{} }; } catch { return { routes:{}, places:{} }; } };
-  let data = load(); data.routes = data.routes || {}; data.places = data.places || {};
-  const subs = { routes:[], places:[] };
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { toast("This browser blocked saving."); } };
+  const load = () => { let d; try { d = JSON.parse(localStorage.getItem(KEY)); } catch {} d = d || {}; d.routes = d.routes || {}; d.places = d.places || {}; d.photos = d.photos || {}; return d; };
+  let data = load();
+  const subs = { routes:[], places:[], photos:[] };
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); return true; } catch { return false; } };
   const snap = c => ({ metadata:{ fromCache:false }, docs:Object.entries(data[c]).map(([id, v]) => ({ id, exists:true, data:() => v })) });
   const emit = c => (subs[c] || []).forEach(f => f(snap(c)));
-  window.addEventListener("storage", e => { if (e.key === KEY) { data = load(); emit("routes"); emit("places"); } });
+  window.addEventListener("storage", e => { if (e.key === KEY) { data = load(); emit("routes"); emit("places"); emit("photos"); } });
   return {
     all: () => data,
     merge(file) {                          // add or update routes/places from a file
       let added = 0;
-      for (const c of ["routes", "places"]) for (const [id, v] of Object.entries((file && file[c]) || {})) {
+      for (const c of ["routes", "places", "photos"]) for (const [id, v] of Object.entries((file && file[c]) || {})) {
         if (!v || typeof v !== "object") continue;
         const cur = data[c][id];
         if (!cur || String(v.updatedAt || "") > String(cur.updatedAt || "")) { data[c][id] = v; added++; }
       }
-      persist(); emit("routes"); emit("places"); return added;
+      if (!persist()) toast("Browser storage is full, so some items weren't kept.");
+      emit("routes"); emit("places"); emit("photos"); return added;
     },
     collection: c => ({
       onSnapshot(next) { (subs[c] = subs[c] || []).push(next); setTimeout(() => next(snap(c)), 0); return () => {}; },
       doc: id => ({
-        async set(v) { data[c] = data[c] || {}; data[c][id] = v; persist(); emit(c); },
+        async set(v) {
+          data[c] = data[c] || {}; const old = data[c][id]; data[c][id] = v;
+          if (!persist()) { if (old === undefined) delete data[c][id]; else data[c][id] = old; throw new Error("full"); }
+          emit(c);
+        },
         async delete() { if (data[c]) delete data[c][id]; persist(); emit(c); }
       })
     })
@@ -852,7 +1011,12 @@ const browserDownloads = {
   db.collection("places").onSnapshot(snap => {
     const next = {};
     snap.docs.forEach(d => { const v = d.data(); if (v && typeof v.name === "string" && isFinite(v.x) && isFinite(v.y)) next[d.id] = { name:v.name.slice(0, 40), x:+v.x, y:+v.y, label:LABEL[v.label] ? v.label : "r" }; });
-    custom = next; renderCustom(); renderMap(); renderStops(); renderSaved();
+    custom = next; renderCustom(); renderMap(); renderStops(); renderSaved(); renderPhotoList();
+  }, () => {});
+  db.collection("photos").onSnapshot(snap => {
+    const next = {};
+    snap.docs.forEach(d => { const v = d.data(); if (v && typeof v.data === "string" && v.data.startsWith("data:image/")) next[d.id] = v.data; });
+    photos = next; renderStops(); renderMap(); renderPhotoList();
   }, () => {});
 })();
 </script>
